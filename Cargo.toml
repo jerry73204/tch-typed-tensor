@@ -5,6 +5,5 @@ authors = ["jerry73204 <jerry73204@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-frunk = "~0"
-tch = "~0"
+tch = { git = "https://github.com/LaurentMazare/tch-rs.git", branch = "master" }
 typenum = "~1"
