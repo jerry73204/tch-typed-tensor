@@ -2,15 +2,21 @@ mod keepdim;
 mod reduction;
 
 use crate::{
+    boolean::IfLess,
+    counter::Where,
     device::TensorDevice,
-    dim::{ConcatAt, Dim, DimList, Permute},
+    dim::{
+        DConcatAt, DConcatAtOutput, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt,
+        Dim, DimList,
+    },
     kind::TensorKind,
-    list::{TList, Where},
+    list::TList,
 };
 pub use keepdim::*;
 pub use reduction::*;
 use std::marker::PhantomData;
 use tch::{Device as TchDevice, Kind as TchKind, Tensor};
+use typenum::{Cmp, Unsigned};
 
 // convenient trait to obtain typed properties
 
@@ -105,13 +111,13 @@ where
 
     pub fn transpose<NewDims, Indexes>(
         &self,
-    ) -> NamedTensor<<Dims as Permute<Indexes, NewDims>>::Output, Kind, Dev>
+    ) -> NamedTensor<DPermuteOutput<Dims, NewDims, Indexes>, Kind, Dev>
     where
         Indexes: TList,
         NewDims: TList,
-        Dims: Permute<Indexes, NewDims>,
+        Dims: DPermute<NewDims, Indexes>,
     {
-        let indexes = <Dims as Permute<Indexes, NewDims>>::permute_index()
+        let indexes = <Dims as DPermute<NewDims, Indexes>>::permute_index()
             .into_iter()
             .map(|idx| idx as i64)
             .collect::<Vec<_>>();
@@ -122,15 +128,44 @@ where
     pub fn concat<Target, Index, RDimList>(
         &self,
         rhs: &NamedTensor<RDimList, Kind, Dev>,
-    ) -> NamedTensor<<Dims as ConcatAt<RDimList, Target, Index>>::Output, Kind, Dev>
+    ) -> NamedTensor<DConcatAtOutput<Dims, RDimList, Target, Index>, Kind, Dev>
     where
-        Dims: ConcatAt<RDimList, Target, Index>,
+        Dims: DConcatAt<RDimList, Target, Index>,
         Target: Dim,
         Index: Where,
         RDimList: DimList,
     {
-        let index = <Dims as ConcatAt<RDimList, Target, Index>>::INDEX;
+        let index = <Dims as DConcatAt<RDimList, Target, Index>>::INDEX;
         let tensor = Tensor::cat(&[&self.tensor, &rhs.tensor], index as i64);
         NamedTensor::from_tch_tensor(tensor)
+    }
+
+    pub fn select<SelectedIndex, Target, TargetIndex>(
+        &self,
+    ) -> NamedTensor<
+        <DRemoveAtOutput<Dims, Target, TargetIndex> as IfLess<
+            SelectedIndex,
+            <Dims as DSizeAt<Target, TargetIndex>>::Output,
+        >>::Output,
+        Kind,
+        Dev,
+    >
+    where
+        Dims: DRemoveAt<Target, TargetIndex> + DSizeAt<Target, TargetIndex>,
+        SelectedIndex: Unsigned + Cmp<<Dims as DSizeAt<Target, TargetIndex>>::Output>,
+        Target: Dim,
+        TargetIndex: Where,
+        <Dims as DRemoveAt<Target, TargetIndex>>::Output:
+            IfLess<SelectedIndex, <Dims as DSizeAt<Target, TargetIndex>>::Output>,
+        <<Dims as DRemoveAt<Target, TargetIndex>>::Output as IfLess<
+            SelectedIndex,
+            <Dims as DSizeAt<Target, TargetIndex>>::Output,
+        >>::Output: DimList,
+    {
+        let target_index = TargetIndex::COUNT_I64;
+        NamedTensor::from_tch_tensor(
+            self.tensor
+                .select(target_index as i64, SelectedIndex::to_i64()),
+        )
     }
 }

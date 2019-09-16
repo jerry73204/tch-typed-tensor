@@ -1,197 +1,183 @@
-use super::{DCons, DNil, Dim, DimList, Reverse, ReverseWithRemain};
+use super::{DCons, DNil, DReverseOutput, Dim, DimList, NonScalarDim};
 use std::marker::PhantomData;
-use typenum::marker_traits::Unsigned;
+use typenum::{Unsigned, U1};
 
-// broadcast matcher for broadcast ops
+// broadcast matcher indicates left, right or one-side abscent match
 
 pub trait BroadcastMatcher {}
 
-pub struct BLeft<M: BroadcastMatcher> {
-    _phantom: PhantomData<M>,
-}
-
-impl<M> BroadcastMatcher for BLeft<M> where M: BroadcastMatcher {}
-
-pub struct BRight<M: BroadcastMatcher> {
-    _phantom: PhantomData<M>,
-}
-
-impl<M> BroadcastMatcher for BRight<M> where M: BroadcastMatcher {}
-
-pub struct BEqual<M: BroadcastMatcher> {
-    _phantom: PhantomData<M>,
-}
-
-impl<M> BroadcastMatcher for BEqual<M> where M: BroadcastMatcher {}
-
-pub struct BAbscent;
-
-impl BroadcastMatcher for BAbscent {}
-
-pub trait BroadcastState {}
-
-pub struct BSInit;
-
-impl BroadcastState for BSInit {}
-
-pub struct BSStarted;
-
-impl BroadcastState for BSStarted {}
-
-// internal broadcast op
-
-pub trait BroadcastInternal<S: BroadcastState, M: BroadcastMatcher, L: DimList> {
-    type Output;
-}
-
-impl BroadcastInternal<BSStarted, BAbscent, DNil> for DNil {
-    type Output = DNil;
-}
-
-impl<D, S, T> BroadcastInternal<BSStarted, BAbscent, DNil> for DCons<D, S, T>
+pub struct BcastLeft<Matcher>
 where
-    D: Dim,
-    S: Unsigned,
-    T: DimList + BroadcastInternal<BSStarted, BAbscent, DNil>,
-    <T as BroadcastInternal<BSStarted, BAbscent, DNil>>::Output: DimList,
+    Matcher: BroadcastMatcher,
 {
-    type Output = DCons<D, S, <T as BroadcastInternal<BSStarted, BAbscent, DNil>>::Output>;
+    _phantom: PhantomData<Matcher>,
 }
 
-impl<D, S, T> BroadcastInternal<BSStarted, BAbscent, DCons<D, S, T>> for DNil
+impl<Matcher> BroadcastMatcher for BcastLeft<Matcher> where Matcher: BroadcastMatcher {}
+
+pub struct BcastRight<Matcher>
 where
-    D: Dim,
-    S: Unsigned,
-    T: DimList + BroadcastInternal<BSStarted, BAbscent, DNil>,
-    <T as BroadcastInternal<BSStarted, BAbscent, DNil>>::Output: DimList,
+    Matcher: BroadcastMatcher,
 {
-    type Output = DCons<D, S, <T as BroadcastInternal<BSStarted, BAbscent, DNil>>::Output>;
+    _phantom: PhantomData<Matcher>,
 }
 
-impl<M, D, S, T1, T2> BroadcastInternal<BSStarted, BEqual<M>, DCons<D, S, T1>> for DCons<D, S, T2>
+impl<Matcher> BroadcastMatcher for BcastRight<Matcher> where Matcher: BroadcastMatcher {}
+
+pub struct BcastEqual<Matcher>
 where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
+    Matcher: BroadcastMatcher,
 {
-    type Output = DCons<D, S, <T1 as BroadcastInternal<BSStarted, M, T2>>::Output>;
+    _phantom: PhantomData<Matcher>,
 }
 
-impl<M, D, S, T1, T2> BroadcastInternal<BSStarted, BLeft<M>, DCons<D, S, T1>>
-    for DCons<D, typenum::consts::U1, T2>
-where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
-{
-    type Output = DCons<D, S, <T1 as BroadcastInternal<BSStarted, M, T2>>::Output>;
-}
+impl<Matcher> BroadcastMatcher for BcastEqual<Matcher> where Matcher: BroadcastMatcher {}
 
-impl<M, D, S, T1, T2> BroadcastInternal<BSStarted, BRight<M>, DCons<D, typenum::consts::U1, T1>>
-    for DCons<D, S, T2>
-where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
-{
-    type Output = DCons<D, S, <T1 as BroadcastInternal<BSStarted, M, T2>>::Output>;
-}
+pub struct BcastAbscent;
 
-impl<M, D, S, T1, T2> BroadcastInternal<BSInit, BEqual<M>, DCons<D, S, T1>> for DCons<D, S, T2>
-where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
-{
-    type Output = <Self as BroadcastInternal<BSStarted, BEqual<M>, DCons<D, S, T1>>>::Output;
-}
-
-impl<M, D, S, T1, T2> BroadcastInternal<BSInit, BLeft<M>, DCons<D, S, T1>>
-    for DCons<D, typenum::consts::U1, T2>
-where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
-{
-    type Output = <Self as BroadcastInternal<BSStarted, BLeft<M>, DCons<D, S, T1>>>::Output;
-}
-
-impl<M, D, S, T1, T2> BroadcastInternal<BSInit, BRight<M>, DCons<D, typenum::consts::U1, T1>>
-    for DCons<D, S, T2>
-where
-    M: BroadcastMatcher,
-    D: Dim,
-    S: Unsigned,
-    T1: DimList + BroadcastInternal<BSStarted, M, T2>,
-    T2: DimList,
-    <T1 as BroadcastInternal<BSStarted, M, T2>>::Output: DimList,
-{
-    type Output = <Self as BroadcastInternal<
-        BSStarted,
-        BRight<M>,
-        DCons<D, typenum::consts::U1, T1>,
-    >>::Output;
-}
+impl BroadcastMatcher for BcastAbscent {}
 
 // broadcast from head
 
-pub trait BroadcastFromHead<M: BroadcastMatcher, L: DimList> {
+pub trait BroadcastingDim<Rhs, Matcher>
+where
+    Rhs: DimList,
+    Matcher: BroadcastMatcher,
+    Self: DimList,
+    Self::Output: DimList,
+{
     type Output;
 }
 
-impl<L, R, M> BroadcastFromHead<M, L> for R
-where
-    L: DimList,
-    R: DimList + BroadcastInternal<BSInit, M, L>,
-    M: BroadcastMatcher,
-    <R as BroadcastInternal<BSInit, M, L>>::Output: DimList + ReverseWithRemain<DNil>,
-{
-    type Output = <<R as BroadcastInternal<BSInit, M, L>>::Output as Reverse>::Output;
+impl BroadcastingDim<DNil, BcastAbscent> for DNil {
+    type Output = DNil;
 }
 
-// broadcast from tail
+impl<Name, Size, Tail> BroadcastingDim<DNil, BcastAbscent> for DCons<Name, Size, Tail>
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList + BroadcastingDim<DNil, BcastAbscent>,
+    BroadcastingDimOutput<Tail, DNil, BcastAbscent>: DimList,
+{
+    type Output = DCons<Name, Size, BroadcastingDimOutput<Tail, DNil, BcastAbscent>>;
+}
 
-pub trait BroadcastFromTail<M: BroadcastMatcher, L: DimList> {
+impl<Name, Size, Tail> BroadcastingDim<DCons<Name, Size, Tail>, BcastAbscent> for DNil
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList + BroadcastingDim<DNil, BcastAbscent>,
+    BroadcastingDimOutput<Tail, DNil, BcastAbscent>: DimList,
+{
+    // Swap Lhs and Rhs to prevent infinite recursion in compile time
+    type Output = DCons<Name, Size, BroadcastingDimOutput<Tail, DNil, BcastAbscent>>;
+}
+
+impl<Matcher, Name, Size, LTail, RTail>
+    BroadcastingDim<DCons<Name, Size, RTail>, BcastEqual<Matcher>> for DCons<Name, Size, LTail>
+where
+    Matcher: BroadcastMatcher,
+    Name: Dim,
+    Size: Unsigned,
+    LTail: DimList + BroadcastingDim<RTail, Matcher>,
+    RTail: DimList,
+    BroadcastingDimOutput<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DCons<Name, Size, BroadcastingDimOutput<LTail, RTail, Matcher>>;
+}
+
+impl<Matcher, Name, Size, LTail, RTail>
+    BroadcastingDim<DCons<Name, Size, RTail>, BcastRight<Matcher>> for DCons<Name, U1, LTail>
+where
+    Matcher: BroadcastMatcher,
+    Name: Dim,
+    Size: Unsigned,
+    LTail: DimList + BroadcastingDim<RTail, Matcher>,
+    RTail: DimList,
+    BroadcastingDimOutput<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DCons<Name, Size, BroadcastingDimOutput<LTail, RTail, Matcher>>;
+}
+
+impl<Matcher, Name, Size, LTail, RTail> BroadcastingDim<DCons<Name, U1, RTail>, BcastLeft<Matcher>>
+    for DCons<Name, Size, LTail>
+where
+    Matcher: BroadcastMatcher,
+    Name: Dim,
+    Size: Unsigned,
+    LTail: DimList + BroadcastingDim<RTail, Matcher>,
+    RTail: DimList,
+    BroadcastingDimOutput<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DCons<Name, Size, BroadcastingDimOutput<LTail, RTail, Matcher>>;
+}
+
+// broadcast init
+
+pub trait BroadcastDim<Rhs, Matcher>
+where
+    Rhs: NonScalarDim,
+    Matcher: BroadcastMatcher,
+    Self::Output: DimList,
+{
     type Output;
 }
 
-impl<L, R, M> BroadcastFromTail<M, L> for R
+impl<Lhs, Rhs, Matcher> BroadcastDim<Rhs, Matcher> for Lhs
 where
-    L: DimList + ReverseWithRemain<DNil>,
-    R: DimList + ReverseWithRemain<DNil>,
-    M: BroadcastMatcher,
-    <L as ReverseWithRemain<DNil>>::Output: DimList,
-    <R as ReverseWithRemain<DNil>>::Output:
-        BroadcastInternal<BSInit, M, <L as ReverseWithRemain<DNil>>::Output>,
-    <<R as ReverseWithRemain<DNil>>::Output as BroadcastInternal<
-        BSInit,
-        M,
-        <L as ReverseWithRemain<DNil>>::Output,
-    >>::Output: DimList,
-    <<R as ReverseWithRemain<DNil>>::Output as BroadcastInternal<
-        BSInit,
-        M,
-        <L as ReverseWithRemain<DNil>>::Output,
-    >>::Output: ReverseWithRemain<DNil>,
+    Matcher: BroadcastMatcher,
+    Lhs: NonScalarDim + BroadcastingDim<Rhs, Matcher>,
+    Rhs: NonScalarDim,
 {
-    type Output = <<<R as Reverse>::Output as BroadcastInternal<
-        BSInit,
-        M,
-        <L as Reverse>::Output,
-    >>::Output as Reverse>::Output;
+    type Output = BroadcastingDimOutput<Lhs, Rhs, Matcher>;
+}
+
+pub type BroadcastDimOutput<Lhs, Rhs, Matcher> = <Lhs as BroadcastDim<Rhs, Matcher>>::Output;
+pub type BroadcastingDimOutput<Lhs, Rhs, Matcher> = <Lhs as BroadcastingDim<Rhs, Matcher>>::Output;
+pub type BroadcastDimReverseOutput<Lhs, Rhs, Matcher> =
+    DReverseOutput<BroadcastDimOutput<DReverseOutput<Lhs>, DReverseOutput<Rhs>, Matcher>>;
+
+// tests
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{dim::DAssertEqualOutput, make_dims, DimListType};
+    use typenum::consts::*;
+
+    make_dims! {A, B, C, D, E}
+
+    type XDims = DimListType! {(A, U3), (B, U2), (C, U1)};
+    type YDims = DimListType! {(A, U3), (B, U1), (C, U4)};
+    type ZDims = DimListType! {(A, U1), (B, U2), (C, U4), (D, U1), (E, U9)};
+    type WDims = DimListType! {(E, U5), (D, U3), (A, U1), (B, U2), (C, U4)};
+
+    type Assert1<Matcher> = DAssertEqualOutput<
+        BroadcastDimOutput<XDims, YDims, Matcher>,
+        DimListType! {(A, U3), (B, U2), (C, U4)},
+    >;
+
+    type Assert2<Matcher> = DAssertEqualOutput<
+        BroadcastDimOutput<XDims, ZDims, Matcher>,
+        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)},
+    >;
+
+    type Assert3<Matcher> = DAssertEqualOutput<
+        BroadcastDimReverseOutput<XDims, YDims, Matcher>,
+        DimListType! {(A, U3), (B, U2), (C, U4)},
+    >;
+
+    type Assert4<Matcher> = DAssertEqualOutput<
+        BroadcastDimReverseOutput<XDims, WDims, Matcher>,
+        DimListType! {(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)},
+    >;
+
+    #[test]
+    fn dim_broadcast_test() {
+        let _: Assert1<_> = ();
+        let _: Assert2<_> = ();
+        let _: Assert3<_> = ();
+        let _: Assert4<_> = ();
+    }
 }

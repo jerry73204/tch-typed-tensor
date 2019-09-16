@@ -1,14 +1,20 @@
 use super::{DoKeepDim, KeepDim, KeepDimOrNot, NamedTensor, NoKeepDim, TensorDevice, TensorKind};
 use crate::{
-    boolean::TBoolean,
-    dim::{DimList, NonScalarDim, ReduceManyToOne, RemoveMany},
+    boolean::Boolean,
+    dim::{
+        DReduceManyToOne, DReduceManyToOneOutput, DRemoveMany, DRemoveManyOutput, DimList,
+        NonScalarDim,
+    },
     list::NonEmptyList,
 };
 
 // reduction op
 
-pub trait Reduction<Indexes: NonEmptyList, Targets: NonEmptyList, Keep: KeepDim + KeepDimOrNot>
+pub trait Reduction<Keep, Targets, Indexes>
 where
+    Indexes: NonEmptyList,
+    Targets: NonEmptyList,
+    Keep: KeepDim + KeepDimOrNot,
     Self::OutDim: DimList,
 {
     type OutDim;
@@ -16,37 +22,40 @@ where
     fn reduced_indexes() -> Vec<usize>;
 }
 
-impl<InDim, InKind, Device, Indexes, Targets> Reduction<Indexes, Targets, NoKeepDim>
+impl<InDim, InKind, Device, Indexes, Targets> Reduction<NoKeepDim, Targets, Indexes>
     for NamedTensor<InDim, InKind, Device>
 where
-    InDim: NonScalarDim + RemoveMany<Indexes, Targets>,
+    InDim: NonScalarDim + DRemoveMany<Targets, Indexes>,
     InKind: TensorKind,
     Device: TensorDevice,
     Indexes: NonEmptyList,
     Targets: NonEmptyList,
 {
-    type OutDim = <InDim as RemoveMany<Indexes, Targets>>::Output;
+    type OutDim = DRemoveManyOutput<InDim, Targets, Indexes>;
 
     fn reduced_indexes() -> Vec<usize> {
-        <InDim as RemoveMany<Indexes, Targets>>::indexes()
+        <InDim as DRemoveMany<Targets, Indexes>>::indexes()
     }
 }
 
-impl<InDim, InKind, Device, Indexes, Targets> Reduction<Indexes, Targets, DoKeepDim>
+impl<InDim, InKind, Device, Indexes, Targets> Reduction<DoKeepDim, Targets, Indexes>
     for NamedTensor<InDim, InKind, Device>
 where
-    InDim: NonScalarDim + ReduceManyToOne<Indexes, Targets>,
+    InDim: NonScalarDim + DReduceManyToOne<Targets, Indexes>,
     InKind: TensorKind,
     Device: TensorDevice,
     Indexes: NonEmptyList,
     Targets: NonEmptyList,
 {
-    type OutDim = <InDim as ReduceManyToOne<Indexes, Targets>>::Output;
+    type OutDim = DReduceManyToOneOutput<InDim, Targets, Indexes>;
 
     fn reduced_indexes() -> Vec<usize> {
-        <InDim as ReduceManyToOne<Indexes, Targets>>::indexes()
+        <InDim as DReduceManyToOne<Targets, Indexes>>::indexes()
     }
 }
+
+pub type ReductionOutDim<Tensor, Keep, Targets, Indexes> =
+    <Tensor as Reduction<Keep, Targets, Indexes>>::OutDim;
 
 // reduce sum
 
@@ -55,15 +64,15 @@ where
     InDim: DimList,
     Device: TensorDevice,
 {
-    fn sum<Indexes, Targets, Keep, OutKind>(
+    fn sum<Keep, OutKind, Targets, Indexes>(
         &self,
-    ) -> NamedTensor<<Self as Reduction<Indexes, Targets, Keep>>::OutDim, OutKind, Device>
+    ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
         Indexes: NonEmptyList,
         Targets: NonEmptyList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
-        Self: Reduction<Indexes, Targets, Keep>;
+        Self: Reduction<Keep, Targets, Indexes>;
 }
 
 impl<InDim, InKind, Device> ReduceSum<InDim, Device> for NamedTensor<InDim, InKind, Device>
@@ -72,17 +81,17 @@ where
     InKind: TensorKind,
     Device: TensorDevice,
 {
-    fn sum<Indexes, Targets, Keep, OutKind>(
+    fn sum<Keep, OutKind, Targets, Indexes>(
         &self,
-    ) -> NamedTensor<<Self as Reduction<Indexes, Targets, Keep>>::OutDim, OutKind, Device>
+    ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
         Indexes: NonEmptyList,
         Targets: NonEmptyList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
-        Self: Reduction<Indexes, Targets, Keep>,
+        Self: Reduction<Keep, Targets, Indexes>,
     {
-        let indexes = <Self as Reduction<Indexes, Targets, Keep>>::reduced_indexes()
+        let indexes = <Self as Reduction<Keep, Targets, Indexes>>::reduced_indexes()
             .into_iter()
             .map(|idx| idx as i64)
             .collect::<Vec<_>>();
@@ -102,15 +111,15 @@ where
     InDim: DimList,
     Device: TensorDevice,
 {
-    fn mean<Indexes, Targets, Keep, OutKind>(
+    fn mean<Keep, OutKind, Targets, Indexes>(
         &self,
-    ) -> NamedTensor<<Self as Reduction<Indexes, Targets, Keep>>::OutDim, OutKind, Device>
+    ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
         Indexes: NonEmptyList,
         Targets: NonEmptyList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
-        Self: Reduction<Indexes, Targets, Keep>;
+        Self: Reduction<Keep, Targets, Indexes>;
 }
 
 impl<InDim, InKind, Device> ReduceMean<InDim, Device> for NamedTensor<InDim, InKind, Device>
@@ -119,17 +128,17 @@ where
     InKind: TensorKind,
     Device: TensorDevice,
 {
-    fn mean<Indexes, Targets, Keep, OutKind>(
+    fn mean<Keep, OutKind, Targets, Indexes>(
         &self,
-    ) -> NamedTensor<<Self as Reduction<Indexes, Targets, Keep>>::OutDim, OutKind, Device>
+    ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
         Indexes: NonEmptyList,
         Targets: NonEmptyList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
-        Self: Reduction<Indexes, Targets, Keep>,
+        Self: Reduction<Keep, Targets, Indexes>,
     {
-        let indexes = <Self as Reduction<Indexes, Targets, Keep>>::reduced_indexes()
+        let indexes = <Self as Reduction<Keep, Targets, Indexes>>::reduced_indexes()
             .into_iter()
             .map(|idx| idx as i64)
             .collect::<Vec<_>>();
@@ -139,5 +148,41 @@ where
             <Keep as KeepDimOrNot>::Output::VALUE,
             OutKind::KIND,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        device::Cpu,
+        kind::{Double, Float},
+        make_dims, DimListType, TListType,
+    };
+    use typenum::consts::*;
+
+    make_dims! {A, B, C}
+
+    type SomeDims = DimListType! {(A, U3), (B, U2), (C, U4)};
+    type SomeTensor = NamedTensor<SomeDims, Double, Cpu>;
+
+    type NoKeepACDims = DimListType! {(B, U2)};
+    type DoKeepACDims = DimListType! {(A, U1), (B, U2), (C, U1)};
+
+    #[test]
+    fn tensor_reduction_test() {
+        let tensor = SomeTensor::zeros();
+
+        let _: NamedTensor<NoKeepACDims, Double, Cpu> =
+            tensor.sum::<NoKeepDim, Double, TListType! {A, C}, _>();
+
+        let _: NamedTensor<DoKeepACDims, Double, Cpu> =
+            tensor.sum::<DoKeepDim, Double, TListType! {A, C}, _>();
+
+        let _: NamedTensor<NoKeepACDims, Float, Cpu> =
+            tensor.mean::<NoKeepDim, Float, TListType! {A, C}, _>();
+
+        let _: NamedTensor<DoKeepACDims, Float, Cpu> =
+            tensor.mean::<DoKeepDim, Float, TListType! {A, C}, _>();
     }
 }

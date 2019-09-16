@@ -1,4 +1,5 @@
-use crate::boolean::{TBoolean, TFalse, TTrue};
+use crate::boolean::Boolean;
+use typenum::{False, True};
 
 pub trait KeepDim {}
 
@@ -12,15 +13,15 @@ impl KeepDim for NoKeepDim {}
 
 pub trait KeepDimOrNot
 where
-    Self::Output: TBoolean,
+    Self::Output: Boolean,
 {
     type Output;
 }
 
 impl KeepDimOrNot for DoKeepDim {
-    type Output = TTrue;
+    type Output = True;
 }
 
 impl KeepDimOrNot for NoKeepDim {
-    type Output = TFalse;
+    type Output = False;
 }

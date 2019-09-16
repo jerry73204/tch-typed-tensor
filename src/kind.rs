@@ -29,3 +29,29 @@ define_kind!(Double, Double);
 define_kind!(ComplexHalf, ComplexHalf);
 define_kind!(ComplexFloat, ComplexFloat);
 define_kind!(ComplexDouble, ComplexDouble);
+
+// integer kind
+
+pub trait IntegerKind {}
+
+impl IntegerKind for Uint8 {}
+impl IntegerKind for Int8 {}
+impl IntegerKind for Int16 {}
+impl IntegerKind for Int {}
+impl IntegerKind for Int64 {}
+
+// floating kind
+
+pub trait FloatKind {}
+
+impl FloatKind for Half {}
+impl FloatKind for Float {}
+impl FloatKind for Double {}
+
+// comple kind
+
+pub trait ComplexKind {}
+
+impl ComplexKind for ComplexHalf {}
+impl ComplexKind for ComplexFloat {}
+impl ComplexKind for ComplexDouble {}
