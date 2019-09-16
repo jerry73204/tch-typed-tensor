@@ -1,7 +1,11 @@
+use half::f16;
+use num::Complex;
 use tch::Kind;
 
 pub trait TensorKind {
     const KIND: Kind;
+
+    type Type;
 
     fn kind(&self) -> Kind {
         Self::KIND
@@ -9,26 +13,27 @@ pub trait TensorKind {
 }
 
 macro_rules! define_kind {
-    ($name:ident, $kind_variant:ident) => {
+    ($name:ident, $kind_variant:ident, $type:ty) => {
         pub struct $name;
 
         impl TensorKind for $name {
             const KIND: Kind = Kind::$kind_variant;
+            type Type = $type;
         }
     };
 }
 
-define_kind!(Uint8, Uint8);
-define_kind!(Int8, Int8);
-define_kind!(Int16, Int16);
-define_kind!(Int, Int);
-define_kind!(Int64, Int64);
-define_kind!(Half, Half);
-define_kind!(Float, Float);
-define_kind!(Double, Double);
-define_kind!(ComplexHalf, ComplexHalf);
-define_kind!(ComplexFloat, ComplexFloat);
-define_kind!(ComplexDouble, ComplexDouble);
+define_kind!(Uint8, Uint8, u8);
+define_kind!(Int8, Int8, i8);
+define_kind!(Int16, Int16, i16);
+define_kind!(Int, Int, i32);
+define_kind!(Int64, Int64, i64);
+define_kind!(Half, Half, f16);
+define_kind!(Float, Float, f32);
+define_kind!(Double, Double, f64);
+define_kind!(ComplexHalf, ComplexHalf, Complex<f16>);
+define_kind!(ComplexFloat, ComplexFloat, Complex<f32>);
+define_kind!(ComplexDouble, ComplexDouble, Complex<f64>);
 
 // integer kind
 

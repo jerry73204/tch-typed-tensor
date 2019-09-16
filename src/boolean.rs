@@ -1,4 +1,5 @@
-use typenum::{Cmp, False, IsLess, IsLessOrEqual, True};
+use crate::tuple::TupleSecondOutput;
+use typenum::{False, IsLess, IsLessOrEqual, True};
 
 // primitives
 
@@ -14,65 +15,91 @@ impl Boolean for False {
     const VALUE: bool = false;
 }
 
+// if exist
+
+pub type IfExistsOutput<Out, Condition> = TupleSecondOutput<(Condition, Out)>;
+
 // if branch
 
-pub trait If<Condition>
+pub trait IfBoolean<Condition>
 where
     Condition: Boolean,
 {
     type Output;
 }
 
-impl<Result> If<True> for Result {
+impl<Result> IfBoolean<True> for Result {
     type Output = Result;
 }
 
+pub type IfBooleanOutput<Out, Predicate> = <Out as IfBoolean<Predicate>>::Output;
+
+// is less
+
+pub trait BoolIsLess<Rhs>
+where
+    Self::Output: Boolean,
+{
+    type Output;
+}
+
+impl<Lhs, Rhs> BoolIsLess<Rhs> for Lhs
+where
+    Lhs: IsLess<Rhs>,
+    <Lhs as IsLess<Rhs>>::Output: Boolean,
+{
+    type Output = <Lhs as IsLess<Rhs>>::Output;
+}
+
+pub type BoolIsLessOutput<Lhs, Rhs> = <Lhs as BoolIsLess<Rhs>>::Output;
+
+// is less or equal
+
+pub trait BoolIsLessOrEqual<Rhs>
+where
+    Self::Output: Boolean,
+{
+    type Output;
+}
+
+impl<Lhs, Rhs> BoolIsLessOrEqual<Rhs> for Lhs
+where
+    Lhs: IsLessOrEqual<Rhs>,
+    <Lhs as IsLessOrEqual<Rhs>>::Output: Boolean,
+{
+    type Output = <Lhs as IsLessOrEqual<Rhs>>::Output;
+}
+
+pub type BoolIsLessOrEqualOutput<Lhs, Rhs> = <Lhs as BoolIsLessOrEqual<Rhs>>::Output;
+
 // if less than
 
-pub trait IfLess<Lhs, Rhs>
-where
-    Lhs: Cmp<Rhs>,
-{
+pub trait IfLess<Lhs, Rhs> {
     type Output;
 }
 
 impl<Lhs, Rhs, Out> IfLess<Lhs, Rhs> for Out
 where
-    Lhs: IsLess<Rhs> + Cmp<Rhs>,
-    Out: If<<Lhs as IsLess<Rhs>>::Output>,
-    <Lhs as IsLess<Rhs>>::Output: Boolean,
+    Lhs: BoolIsLess<Rhs>,
+    Out: IfBoolean<BoolIsLessOutput<Lhs, Rhs>>,
 {
-    type Output = <Out as If<<Lhs as IsLess<Rhs>>::Output>>::Output;
+    type Output = IfBooleanOutput<Out, BoolIsLessOutput<Lhs, Rhs>>;
 }
+
+pub type IfLessOutput<Out, Lhs, Rhs> = <Out as IfLess<Lhs, Rhs>>::Output;
 
 // if less than or equal
 
-pub trait IfLessOrEqual<Lhs, Rhs>
-where
-    Lhs: Cmp<Rhs>,
-{
+pub trait IfLessOrEqual<Lhs, Rhs> {
     type Output;
 }
 
 impl<Lhs, Rhs, Out> IfLessOrEqual<Lhs, Rhs> for Out
 where
-    Lhs: IsLessOrEqual<Rhs> + Cmp<Rhs>,
-    Out: If<<Lhs as IsLessOrEqual<Rhs>>::Output>,
-    <Lhs as IsLessOrEqual<Rhs>>::Output: Boolean,
+    Lhs: BoolIsLessOrEqual<Rhs>,
+    Out: IfBoolean<BoolIsLessOrEqualOutput<Lhs, Rhs>>,
 {
-    type Output = <Out as If<<Lhs as IsLessOrEqual<Rhs>>::Output>>::Output;
+    type Output = IfBooleanOutput<Out, BoolIsLessOrEqualOutput<Lhs, Rhs>>;
 }
 
-// if-else branch
-
-pub trait IfElse<A, B> {
-    type Output;
-}
-
-impl<A, B> IfElse<A, B> for True {
-    type Output = A;
-}
-
-impl<A, B> IfElse<A, B> for False {
-    type Output = B;
-}
+pub type IfLessOrEqualOutput<Out, Lhs, Rhs> = <Out as IfLessOrEqual<Lhs, Rhs>>::Output;

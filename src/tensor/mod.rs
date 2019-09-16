@@ -1,30 +1,31 @@
+mod full_op;
 mod keepdim;
 mod reduction;
+mod value_at;
 
 use crate::{
-    boolean::IfLess,
+    boolean::{IfLess, IfLessOutput},
     counter::Where,
     device::TensorDevice,
     dim::{
         DConcatAt, DConcatAtOutput, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt,
-        Dim, DimList,
+        DSizeAtOutput, Dim, DimList,
     },
     kind::TensorKind,
     list::TList,
 };
+pub use full_op::*;
 pub use keepdim::*;
 pub use reduction::*;
 use std::marker::PhantomData;
 use tch::{Device as TchDevice, Kind as TchKind, Tensor};
-use typenum::{Cmp, Unsigned};
+use typenum::Unsigned;
+pub use value_at::*;
 
 // convenient trait to obtain typed properties
 
-pub trait NamedTensorTrait<Dims, Kind, Dev>
+pub trait NamedTensorTrait
 where
-    Dims: DimList,
-    Kind: TensorKind,
-    Dev: TensorDevice,
     Self::Dimension: DimList,
     Self::Kind: TensorKind,
     Self::Device: TensorDevice,
@@ -34,7 +35,7 @@ where
     type Device;
 }
 
-impl<Dims, Kind, Dev> NamedTensorTrait<Dims, Kind, Dev> for NamedTensor<Dims, Kind, Dev>
+impl<Dims, Kind, Dev> NamedTensorTrait for NamedTensor<Dims, Kind, Dev>
 where
     Dims: DimList,
     Kind: TensorKind,
@@ -143,24 +144,26 @@ where
     pub fn select<SelectedIndex, Target, TargetIndex>(
         &self,
     ) -> NamedTensor<
-        <DRemoveAtOutput<Dims, Target, TargetIndex> as IfLess<
+        IfLessOutput<
+            DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
-            <Dims as DSizeAt<Target, TargetIndex>>::Output,
-        >>::Output,
+            DSizeAtOutput<Dims, Target, TargetIndex>,
+        >,
         Kind,
         Dev,
     >
     where
         Dims: DRemoveAt<Target, TargetIndex> + DSizeAt<Target, TargetIndex>,
-        SelectedIndex: Unsigned + Cmp<<Dims as DSizeAt<Target, TargetIndex>>::Output>,
+        SelectedIndex: Unsigned,
         Target: Dim,
         TargetIndex: Where,
-        <Dims as DRemoveAt<Target, TargetIndex>>::Output:
-            IfLess<SelectedIndex, <Dims as DSizeAt<Target, TargetIndex>>::Output>,
-        <<Dims as DRemoveAt<Target, TargetIndex>>::Output as IfLess<
+        DRemoveAtOutput<Dims, Target, TargetIndex>:
+            IfLess<SelectedIndex, DSizeAtOutput<Dims, Target, TargetIndex>>,
+        IfLessOutput<
+            DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
-            <Dims as DSizeAt<Target, TargetIndex>>::Output,
-        >>::Output: DimList,
+            DSizeAtOutput<Dims, Target, TargetIndex>,
+        >: DimList,
     {
         let target_index = TargetIndex::COUNT_I64;
         NamedTensor::from_tch_tensor(
