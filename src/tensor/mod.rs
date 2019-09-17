@@ -112,6 +112,13 @@ where
         NamedTensor::from_tch_tensor(self.tensor.to_kind(Self::KIND))
     }
 
+    pub fn to_device<NewDevice>(&self) -> NamedTensor<Dims, Kind, NewDevice>
+    where
+        NewDevice: TensorDevice,
+    {
+        NamedTensor::from_tch_tensor(self.tensor.to_device(Self::DEVICE))
+    }
+
     pub fn transpose<NewDims, Indexes>(
         &self,
     ) -> NamedTensor<DPermuteOutput<Dims, NewDims, Indexes>, Kind, Dev>
