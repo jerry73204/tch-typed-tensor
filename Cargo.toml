@@ -1,5 +1,5 @@
 [package]
-name = "typed-tensor-demo"
+name = "tch-typed-tensor"
 version = "0.1.0"
 authors = ["jerry73204 <jerry73204@gmail.com>"]
 edition = "2018"
@@ -7,3 +7,5 @@ edition = "2018"
 [dependencies]
 tch = { git = "https://github.com/LaurentMazare/tch-rs.git", branch = "master" }
 typenum = "~1"
+num = "~0"
+half = "~1"
