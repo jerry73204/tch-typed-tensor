@@ -15,8 +15,13 @@ use typenum::{Sum, Unsigned, U1};
 
 pub trait Dim {}
 
-pub trait DimList: TList {
-    fn shape() -> Vec<usize>;
+pub trait DimList {
+    const LENGTH: usize;
+
+    fn shape_i64() -> Vec<i64>;
+    fn shape_usize() -> Vec<usize>;
+    fn append_shape_i64(prev: &mut Vec<i64>);
+    fn append_shape_usize(prev: &mut Vec<usize>);
 }
 
 // end of dim list
@@ -30,13 +35,19 @@ impl DNil {
 }
 
 impl DimList for DNil {
-    fn shape() -> Vec<usize> {
+    const LENGTH: usize = 0;
+
+    fn shape_usize() -> Vec<usize> {
         vec![]
     }
-}
 
-impl TList for DNil {
-    const LENGTH: usize = LNil::LENGTH;
+    fn shape_i64() -> Vec<i64> {
+        vec![]
+    }
+
+    fn append_shape_usize(_prev: &mut Vec<usize>) {}
+
+    fn append_shape_i64(_prev: &mut Vec<i64>) {}
 }
 
 // node of dim list
@@ -69,21 +80,65 @@ where
     Size: Unsigned,
     Tail: DimList,
 {
-    fn shape() -> Vec<usize> {
-        // TODO: fix O(n^2) complexity here
-        let mut shp = Tail::shape();
-        shp.insert(0, Size::USIZE);
-        shp
+    const LENGTH: usize = 1 + Tail::LENGTH;
+
+    fn shape_usize() -> Vec<usize> {
+        let mut shape = vec![];
+        Self::append_shape_usize(&mut shape);
+        shape
+    }
+
+    fn shape_i64() -> Vec<i64> {
+        let mut shape = vec![];
+        Self::append_shape_i64(&mut shape);
+        shape
+    }
+
+    fn append_shape_usize(prev: &mut Vec<usize>) {
+        prev.push(Size::USIZE);
+        Tail::append_shape_usize(prev);
+    }
+
+    fn append_shape_i64(prev: &mut Vec<i64>) {
+        prev.push(Size::I64);
+        Tail::append_shape_i64(prev);
     }
 }
 
-impl<Name, Size, Tail> TList for DCons<Name, Size, Tail>
+// special marked node for remove-many op
+
+pub struct DMarkedCons<Name, Size, Tail>
 where
     Name: Dim,
     Size: Unsigned,
     Tail: DimList,
 {
-    const LENGTH: usize = LCons::<(Name, Size), Tail>::LENGTH;
+    _phantom: PhantomData<(Name, Size, Tail)>,
+}
+
+impl<Name, Size, Tail> DimList for DMarkedCons<Name, Size, Tail>
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList,
+{
+    const LENGTH: usize = 1 + Tail::LENGTH;
+
+    fn shape_i64() -> Vec<i64> {
+        unreachable!();
+    }
+
+    fn shape_usize() -> Vec<usize> {
+        unreachable!();
+    }
+
+    fn append_shape_i64(_prev: &mut Vec<i64>) {
+        unreachable!();
+    }
+
+    fn append_shape_usize(_prev: &mut Vec<usize>) {
+        unreachable!();
+    }
 }
 
 // extract dimension part
@@ -143,7 +198,7 @@ where
     Indexes: TList,
 {
     fn indexes() -> Vec<usize>;
-    fn inverse_indexes() -> Vec<usize>;
+    fn append_indexes(prev: &mut Vec<usize>);
 }
 
 impl<List> DIndexOfMany<LNil, LNil> for List
@@ -154,9 +209,7 @@ where
         vec![]
     }
 
-    fn inverse_indexes() -> Vec<usize> {
-        (0..(List::LENGTH)).collect()
-    }
+    fn append_indexes(_prev: &mut Vec<usize>) {}
 }
 
 impl<Index, IRemain, Target, TRemain, Name, Size, Tail>
@@ -172,15 +225,16 @@ where
     Self: DIndexOfMany<TRemain, IRemain> + DIndexOf<Target, Index>,
 {
     fn indexes() -> Vec<usize> {
-        let mut indexes = <Self as DIndexOfMany<TRemain, IRemain>>::indexes();
-        indexes.insert(0, <Self as DIndexOf<Target, Index>>::INDEX);
+        let mut indexes = vec![];
+        <Self as DIndexOfMany<LCons<Target, TRemain>, LCons<Index, IRemain>>>::append_indexes(
+            &mut indexes,
+        );
         indexes
     }
 
-    fn inverse_indexes() -> Vec<usize> {
-        let mut indexes = <Self as DIndexOfMany<TRemain, IRemain>>::inverse_indexes();
-        indexes.remove_item(&<Self as DIndexOf<Target, Index>>::INDEX);
-        indexes
+    fn append_indexes(prev: &mut Vec<usize>) {
+        prev.push(<Self as DIndexOf<Target, Index>>::INDEX);
+        <Self as DIndexOfMany<TRemain, IRemain>>::append_indexes(prev);
     }
 }
 
@@ -370,6 +424,143 @@ where
 
 pub type DRemoveAtOutput<List, Target, Index> = <List as DRemoveAt<Target, Index>>::Output;
 
+// mark node
+
+pub trait DMark<Target, Index>
+where
+    Target: Dim,
+    Index: Where,
+    Self: DimList,
+    Self::Output: DimList,
+{
+    type Output;
+}
+
+impl<Target, Size, Tail> DMark<Target, Here> for DCons<Target, Size, Tail>
+where
+    Target: Dim,
+    Size: Unsigned,
+    Tail: DimList,
+{
+    type Output = DMarkedCons<Target, Size, Tail>;
+}
+
+impl<Target, Index, NonTarget, Size, Tail> DMark<Target, There<Index>>
+    for DCons<NonTarget, Size, Tail>
+where
+    Target: Dim,
+    Index: Where,
+    NonTarget: Dim,
+    Size: Unsigned,
+    Tail: DimList + DMark<Target, Index>,
+{
+    type Output = DCons<NonTarget, Size, DMarkOutput<Tail, Target, Index>>;
+}
+
+impl<Target, Index, NonTarget, Size, Tail> DMark<Target, There<Index>>
+    for DMarkedCons<NonTarget, Size, Tail>
+where
+    Target: Dim,
+    Index: Where,
+    NonTarget: Dim,
+    Size: Unsigned,
+    Tail: DimList + DMark<Target, Index>,
+{
+    type Output = DMarkedCons<NonTarget, Size, DMarkOutput<Tail, Target, Index>>;
+}
+
+pub type DMarkOutput<List, Target, Index> = <List as DMark<Target, Index>>::Output;
+
+// mark multiple nodes
+
+pub trait DMarkMany<Targets, Indexes>
+where
+    Targets: TList,
+    Indexes: TList,
+    Self: DimList,
+    Self::Output: DimList,
+{
+    type Output;
+
+    fn indexes() -> Vec<usize>;
+    fn append_indexes(prev: &mut Vec<usize>);
+}
+
+impl<List> DMarkMany<LNil, LNil> for List
+where
+    List: DimList,
+{
+    type Output = List;
+
+    fn indexes() -> Vec<usize> {
+        vec![]
+    }
+
+    fn append_indexes(_prev: &mut Vec<usize>) {}
+}
+
+impl<Target, TRemain, Index, IRemain, List> DMarkMany<LCons<Target, TRemain>, LCons<Index, IRemain>>
+    for List
+where
+    Target: Dim,
+    TRemain: TList,
+    Index: Where,
+    IRemain: TList,
+    List: DimList + DMark<Target, Index>,
+    DMarkOutput<List, Target, Index>: DMarkMany<TRemain, IRemain>,
+{
+    type Output = DMarkManyOutput<DMarkOutput<List, Target, Index>, TRemain, IRemain>;
+
+    fn indexes() -> Vec<usize> {
+        let mut indexes = vec![];
+        <List as DMarkMany<LCons<Target, TRemain>, LCons<Index, IRemain>>>::append_indexes(
+            &mut indexes,
+        );
+        indexes
+    }
+
+    fn append_indexes(prev: &mut Vec<usize>) {
+        prev.push(Index::COUNT_USIZE);
+        <DMarkOutput<List, Target, Index> as DMarkMany<TRemain, IRemain>>::append_indexes(prev);
+    }
+}
+
+pub type DMarkManyOutput<List, Targets, Indexes> = <List as DMarkMany<Targets, Indexes>>::Output;
+
+// remove marked nodes
+
+pub trait DRemoveMarked
+where
+    Self: DimList,
+    Self::Output: DimList,
+{
+    type Output;
+}
+
+impl DRemoveMarked for DNil {
+    type Output = DNil;
+}
+
+impl<Name, Size, Tail> DRemoveMarked for DCons<Name, Size, Tail>
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList + DRemoveMarked,
+{
+    type Output = DCons<Name, Size, DRemoveMarkedOutput<Tail>>;
+}
+
+impl<Name, Size, Tail> DRemoveMarked for DMarkedCons<Name, Size, Tail>
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList + DRemoveMarked,
+{
+    type Output = DRemoveMarkedOutput<Tail>;
+}
+
+pub type DRemoveMarkedOutput<List> = <List as DRemoveMarked>::Output;
+
 // remove many
 
 pub trait DRemoveMany<Targets, Indexes>
@@ -384,41 +575,17 @@ where
     fn indexes() -> Vec<usize>;
 }
 
-impl<List> DRemoveMany<LNil, LNil> for List
+impl<List, Targets, Indexes> DRemoveMany<Targets, Indexes> for List
 where
-    List: DimList,
+    Targets: TList,
+    Indexes: TList,
+    List: DimList + DMarkMany<Targets, Indexes>,
+    DMarkManyOutput<List, Targets, Indexes>: DRemoveMarked,
 {
-    type Output = List;
+    type Output = DRemoveMarkedOutput<DMarkManyOutput<List, Targets, Indexes>>;
 
     fn indexes() -> Vec<usize> {
-        vec![]
-    }
-}
-
-impl<Index, IRemain, Target, TRemain, Name, Size, Tail>
-    DRemoveMany<LCons<Target, TRemain>, LCons<Index, IRemain>> for DCons<Name, Size, Tail>
-where
-    Index: Where,
-    IRemain: TList,
-    Target: Dim,
-    TRemain: TList,
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-    Self: DRemoveAt<Target, Index>,
-    DRemoveAtOutput<Self, Target, Index>: DRemoveMany<TRemain, IRemain>,
-{
-    type Output = DRemoveManyOutput<DRemoveAtOutput<Self, Target, Index>, TRemain, IRemain>;
-
-    fn indexes() -> Vec<usize> {
-        let curr_index = <Self as DRemoveAt<Target, Index>>::index();
-        let mut indexes =
-            <DRemoveAtOutput<Self, Target, Index> as DRemoveMany<TRemain, IRemain>>::indexes()
-                .into_iter()
-                .map(|idx| if idx >= curr_index { idx + 1 } else { idx })
-                .collect::<Vec<_>>();
-        indexes.insert(0, curr_index);
-        indexes
+        <List as DMarkMany<Targets, Indexes>>::indexes()
     }
 }
 
@@ -977,6 +1144,18 @@ mod tests {
         // size of specified dimension
         let _: U2 = Size1::<_>::new();
 
+        // length
+        assert_eq!(EmptyDims::LENGTH, 0);
+        assert_eq!(SomeDims::LENGTH, 3);
+        assert_eq!(AnotherDims::LENGTH, 2);
+        assert_eq!(TheOtherDims::LENGTH, 3);
+
+        // shape vector
+        assert_eq!(EmptyDims::shape_usize(), &[]);
+        assert_eq!(SomeDims::shape_usize(), &[3, 2, 4]);
+        assert_eq!(AnotherDims::shape_usize(), &[1, 0]);
+        assert_eq!(TheOtherDims::shape_usize(), &[3, 4, 4]);
+
         // index of name
         assert_eq!(<SomeDims as DIndexOf<A, _>>::INDEX, 0);
         assert_eq!(<SomeDims as DIndexOf<B, _>>::INDEX, 1);
@@ -984,12 +1163,8 @@ mod tests {
 
         // index of multiple names
         assert_eq!(
-            <SomeDims as DIndexOfMany<TListType! {A, C}, _>>::indexes(),
-            &[0, 2]
-        );
-        assert_eq!(
-            <SomeDims as DIndexOfMany<TListType! {A, C}, _>>::inverse_indexes(),
-            &[1]
+            <SomeDims as DIndexOfMany<TListType! {C, A}, _>>::indexes(),
+            &[2, 0]
         );
     }
 }

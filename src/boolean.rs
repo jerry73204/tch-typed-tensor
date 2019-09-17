@@ -103,3 +103,15 @@ where
 }
 
 pub type IfLessOrEqualOutput<Out, Lhs, Rhs> = <Out as IfLessOrEqual<Lhs, Rhs>>::Output;
+
+// if equal boolean
+
+pub trait IfEqual<Lhs, Rhs> {
+    type Output;
+}
+
+impl<Input, Out> IfEqual<Input, Input> for Out {
+    type Output = Out;
+}
+
+pub type IfEqualOutput<Out, Lhs, Rhs> = <Out as IfEqual<Lhs, Rhs>>::Output;

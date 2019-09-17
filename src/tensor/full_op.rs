@@ -19,11 +19,7 @@ where
     Kind::Type: Into<TchScalar>,
 {
     fn full(value: Kind::Type) -> Self {
-        let size = Dims::shape()
-            .into_iter()
-            .map(|val| val as i64)
-            .collect::<Vec<_>>();
-
+        let size = Dims::shape_i64();
         let tensor = Tensor::full(&size, value, (Self::KIND, Self::DEVICE));
         Self::from_tch_tensor(tensor)
     }

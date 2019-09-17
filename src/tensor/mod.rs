@@ -84,23 +84,25 @@ where
     }
 
     pub fn size(&self) -> Vec<i64> {
-        Dims::shape().into_iter().map(|size| size as i64).collect()
+        Dims::shape_i64()
     }
 
     pub fn zeros() -> Self {
-        let shape = Dims::shape()
-            .into_iter()
-            .map(|val| val as i64)
-            .collect::<Vec<_>>();
-        NamedTensor::from_tch_tensor(Tensor::zeros(&shape, (Self::KIND, Self::DEVICE)))
+        let shape = Dims::shape_i64();
+        Self::from_tch_tensor(Tensor::zeros(&shape, (Self::KIND, Self::DEVICE)))
     }
 
     pub fn zeros_like(&self) -> Self {
-        let shape = Dims::shape()
-            .into_iter()
-            .map(|val| val as i64)
-            .collect::<Vec<_>>();
-        NamedTensor::from_tch_tensor(Tensor::zeros(&shape, (Self::KIND, Self::DEVICE)))
+        Self::from_tch_tensor(self.tensor.zeros_like())
+    }
+
+    pub fn randn() -> Self {
+        let shape = Dims::shape_i64();
+        Self::from_tch_tensor(Tensor::randn(&shape, (Self::KIND, Self::DEVICE)))
+    }
+
+    pub fn randn_like(&self) -> Self {
+        Self::from_tch_tensor(self.tensor.randn_like())
     }
 
     pub fn to_kind<NewKind>(&self) -> NamedTensor<Dims, NewKind, Dev>
@@ -170,5 +172,19 @@ where
             self.tensor
                 .select(target_index as i64, SelectedIndex::to_i64()),
         )
+    }
+}
+
+// tests
+
+#[cfg(test)]
+mod tests {
+    // use super::*;
+    // use crate::{list::LAssertEqualOutput, make_dims, DimListType, TListType};
+    // use typenum::consts::*;
+
+    #[test]
+    fn named_tensor_test() {
+        // TODO
     }
 }
