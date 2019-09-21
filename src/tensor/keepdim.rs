@@ -1,4 +1,4 @@
-use crate::boolean::Boolean;
+use type_freak::boolean::Boolean;
 use typenum::{False, True};
 
 // definitions

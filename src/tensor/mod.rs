@@ -3,23 +3,26 @@ mod keepdim;
 mod reduction;
 mod value_at;
 
+use type_freak::{
+    control::{IfLess, IfLessOut},
+    counter::{Count, CountOut, Counter},
+    list::TList,
+};
+
 use crate::{
-    boolean::{IfLess, IfLessOutput},
-    counter::Where,
     device::TensorDevice,
     dim::{
         DConcatAt, DConcatAtOutput, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt,
         DSizeAtOutput, Dim, DimList,
     },
     kind::TensorKind,
-    list::TList,
 };
 pub use full_op::*;
 pub use keepdim::*;
 pub use reduction::*;
 use std::marker::PhantomData;
 use tch::{Device as TchDevice, Kind as TchKind, Tensor};
-use typenum::Unsigned;
+use typenum::{IsLess, Unsigned};
 pub use value_at::*;
 
 // convenient trait to obtain typed properties
@@ -142,7 +145,7 @@ where
     where
         Dims: DConcatAt<RDimList, Target, Index>,
         Target: Dim,
-        Index: Where,
+        Index: Counter,
         RDimList: DimList,
     {
         let index = <Dims as DConcatAt<RDimList, Target, Index>>::INDEX;
@@ -153,7 +156,7 @@ where
     pub fn select<SelectedIndex, Target, TargetIndex>(
         &self,
     ) -> NamedTensor<
-        IfLessOutput<
+        IfLessOut<
             DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
             DSizeAtOutput<Dims, Target, TargetIndex>,
@@ -163,18 +166,18 @@ where
     >
     where
         Dims: DRemoveAt<Target, TargetIndex> + DSizeAt<Target, TargetIndex>,
-        SelectedIndex: Unsigned,
+        SelectedIndex: Unsigned + IsLess<DSizeAtOutput<Dims, Target, TargetIndex>>,
         Target: Dim,
-        TargetIndex: Where,
+        TargetIndex: Counter + Count,
         DRemoveAtOutput<Dims, Target, TargetIndex>:
             IfLess<SelectedIndex, DSizeAtOutput<Dims, Target, TargetIndex>>,
-        IfLessOutput<
+        IfLessOut<
             DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
             DSizeAtOutput<Dims, Target, TargetIndex>,
         >: DimList,
     {
-        let target_index = TargetIndex::COUNT_I64;
+        let target_index = CountOut::<TargetIndex>::I64;
         NamedTensor::from_tch_tensor(
             self.tensor
                 .select(target_index as i64, SelectedIndex::to_i64()),

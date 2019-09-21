@@ -1,17 +1,17 @@
 use super::NamedTensor;
 use crate::{
-    boolean::IfExistsOutput,
     device::TensorDevice,
     dim::DimList,
     index::{IAssertBounded, IAssertBoundedOutput, IndexList},
     kind::TensorKind,
 };
+use type_freak::control::IfOut;
 
 pub trait TensorValueAt<ValueType, Dims>
 where
     Dims: DimList,
 {
-    fn value_at<Indexes>(&self) -> IfExistsOutput<ValueType, IAssertBoundedOutput<Indexes, Dims>>
+    fn value_at<Indexes>(&self) -> IfOut<ValueType, IAssertBoundedOutput<Indexes, Dims>>
     where
         Indexes: IndexList + IAssertBounded<Dims>;
 }

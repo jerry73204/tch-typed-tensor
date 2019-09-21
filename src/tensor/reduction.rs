@@ -2,24 +2,28 @@ use super::{
     DoKeepDim, KeepDim, KeepDimOrNot, KeepDimOrNotOutput, NamedTensor, NoKeepDim, TensorDevice,
     TensorKind,
 };
-use crate::{
+use type_freak::{
     boolean::Boolean,
-    counter::Where,
+    counter::{Count, CountOut, Counter},
+    list::NonEmptyTList,
+    TListType,
+};
+use typenum::Unsigned;
+
+use crate::{
     dim::{
         DReduceManyToOne, DReduceManyToOneOutput, DRemoveMany, DRemoveManyOutput, Dim, DimList,
         NonScalarDim,
     },
     kind::Int64,
-    list::NonEmptyList,
-    TListType,
 };
 
 // reduction op
 
 pub trait Reduction<Keep, Targets, Indexes>
 where
-    Indexes: NonEmptyList,
-    Targets: NonEmptyList,
+    Indexes: NonEmptyTList,
+    Targets: NonEmptyTList,
     Keep: KeepDim + KeepDimOrNot,
     Self::OutDim: DimList,
 {
@@ -34,8 +38,8 @@ where
     InDim: NonScalarDim + DRemoveMany<Targets, Indexes>,
     InKind: TensorKind,
     Device: TensorDevice,
-    Indexes: NonEmptyList,
-    Targets: NonEmptyList,
+    Indexes: NonEmptyTList,
+    Targets: NonEmptyTList,
 {
     type OutDim = DRemoveManyOutput<InDim, Targets, Indexes>;
 
@@ -50,8 +54,8 @@ where
     InDim: NonScalarDim + DReduceManyToOne<Targets, Indexes>,
     InKind: TensorKind,
     Device: TensorDevice,
-    Indexes: NonEmptyList,
-    Targets: NonEmptyList,
+    Indexes: NonEmptyTList,
+    Targets: NonEmptyTList,
 {
     type OutDim = DReduceManyToOneOutput<InDim, Targets, Indexes>;
 
@@ -74,8 +78,8 @@ where
         &self,
     ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
-        Indexes: NonEmptyList,
-        Targets: NonEmptyList,
+        Indexes: NonEmptyTList,
+        Targets: NonEmptyTList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
         Self: Reduction<Keep, Targets, Indexes>;
@@ -91,8 +95,8 @@ where
         &self,
     ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
-        Indexes: NonEmptyList,
-        Targets: NonEmptyList,
+        Indexes: NonEmptyTList,
+        Targets: NonEmptyTList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
         Self: Reduction<Keep, Targets, Indexes>,
@@ -104,7 +108,7 @@ where
 
         NamedTensor::from_tch_tensor(self.tensor.sum1(
             &indexes,
-            KeepDimOrNotOutput::<Keep>::VALUE,
+            KeepDimOrNotOutput::<Keep>::BOOL,
             OutKind::KIND,
         ))
     }
@@ -121,8 +125,8 @@ where
         &self,
     ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
-        Indexes: NonEmptyList,
-        Targets: NonEmptyList,
+        Indexes: NonEmptyTList,
+        Targets: NonEmptyTList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
         Self: Reduction<Keep, Targets, Indexes>;
@@ -138,8 +142,8 @@ where
         &self,
     ) -> NamedTensor<ReductionOutDim<Self, Keep, Targets, Indexes>, OutKind, Device>
     where
-        Indexes: NonEmptyList,
-        Targets: NonEmptyList,
+        Indexes: NonEmptyTList,
+        Targets: NonEmptyTList,
         Keep: KeepDim + KeepDimOrNot,
         OutKind: TensorKind,
         Self: Reduction<Keep, Targets, Indexes>,
@@ -151,7 +155,7 @@ where
 
         NamedTensor::from_tch_tensor(self.tensor.mean1(
             &indexes,
-            KeepDimOrNotOutput::<Keep>::VALUE,
+            KeepDimOrNotOutput::<Keep>::BOOL,
             OutKind::KIND,
         ))
     }
@@ -180,7 +184,7 @@ where
         >,
     )
     where
-        Index: Where,
+        Index: Counter + Count,
         Target: Dim,
         Keep: KeepDim + KeepDimOrNot,
         Self: Reduction<Keep, TListType! {Target}, TListType! {Index}>;
@@ -207,14 +211,14 @@ where
         >,
     )
     where
-        Index: Where,
+        Index: Counter + Count,
         Target: Dim,
         Keep: KeepDim + KeepDimOrNot,
         Self: Reduction<Keep, TListType! {Target}, TListType! {Index}>,
     {
         let (reduced_tch_tensor, index_tch_tensor) = self
             .tensor
-            .max2(Index::COUNT_I64, KeepDimOrNotOutput::<Keep>::VALUE);
+            .max2(CountOut::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
 
         let reduced_tensor = NamedTensor::from_tch_tensor(reduced_tch_tensor);
         let index_tensor = NamedTensor::from_tch_tensor(index_tch_tensor);
@@ -246,7 +250,7 @@ where
         >,
     )
     where
-        Index: Where,
+        Index: Counter + Count,
         Target: Dim,
         Keep: KeepDim + KeepDimOrNot,
         Self: Reduction<Keep, TListType! {Target}, TListType! {Index}>;
@@ -273,14 +277,14 @@ where
         >,
     )
     where
-        Index: Where,
+        Index: Counter + Count,
         Target: Dim,
         Keep: KeepDim + KeepDimOrNot,
         Self: Reduction<Keep, TListType! {Target}, TListType! {Index}>,
     {
         let (reduced_tch_tensor, index_tch_tensor) = self
             .tensor
-            .min2(Index::COUNT_I64, KeepDimOrNotOutput::<Keep>::VALUE);
+            .min2(CountOut::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
 
         let reduced_tensor = NamedTensor::from_tch_tensor(reduced_tch_tensor);
         let index_tensor = NamedTensor::from_tch_tensor(index_tch_tensor);

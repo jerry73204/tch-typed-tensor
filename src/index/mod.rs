@@ -1,9 +1,7 @@
-use crate::{
-    boolean::{IfLess, IfLessOrEqual, IfLessOrEqualOutput, IfLessOutput},
-    dim::{DCons, DNil, Dim, DimList},
-};
+use crate::dim::{DCons, DNil, Dim, DimList};
 use std::marker::PhantomData;
-use typenum::{NonZero, Unsigned};
+use type_freak::control::{IfLess, IfLessOrEqual, IfLessOrEqualOut, IfLessOut};
+use typenum::{Cmp, IsLess, IsLessOrEqual, NonZero, Unsigned};
 
 // index trait
 
@@ -132,11 +130,11 @@ where
     Name: Dim,
     Size: Unsigned,
     DTail: DimList,
-    Value: Unsigned,
+    Value: Unsigned + IsLess<Size>,
     ITail: IndexList + IAssertBounded<DTail>,
     IAssertBoundedOutput<ITail, DTail>: IfLess<Value, Size>,
 {
-    type Output = IfLessOutput<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
+    type Output = IfLessOut<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
 }
 
 impl<Name, Size, DTail, Value, ITail> IAssertBounded<DCons<Name, Size, DTail>>
@@ -145,11 +143,11 @@ where
     Name: Dim,
     Size: Unsigned,
     DTail: DimList,
-    Value: Unsigned + NonZero,
+    Value: Unsigned + NonZero + IsLessOrEqual<Size>,
     ITail: IndexList + IAssertBounded<DTail>,
     IAssertBoundedOutput<ITail, DTail>: IfLessOrEqual<Value, Size>,
 {
-    type Output = IfLessOrEqualOutput<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
+    type Output = IfLessOrEqualOut<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
 }
 
 pub type IAssertBoundedOutput<IList, DList> = <IList as IAssertBounded<DList>>::Output;

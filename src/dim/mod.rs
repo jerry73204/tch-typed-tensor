@@ -4,11 +4,11 @@ mod marker;
 pub use broadcast::*;
 pub use marker::*;
 
-use crate::{
-    counter::{Here, There, Where},
-    list::{LCons, LIndexOf, LNil, LSetEqual, LSetEqualOutput, TList},
-};
 use std::marker::PhantomData;
+use type_freak::{
+    counter::{Count, CountOut, Counter, Current, Next},
+    list::{LCons, LIndexOf, LNil, LSetEqual, LSetEqualOut, TList},
+};
 use typenum::{Sum, Unsigned, U1};
 
 // dimension list
@@ -172,7 +172,7 @@ pub trait DIndexOf<Target, Index>
 where
     Self: DimList,
     Target: Dim,
-    Index: Where,
+    Index: Counter,
 {
     const INDEX: usize;
 }
@@ -180,7 +180,7 @@ where
 impl<Target, Index, Name, Size, Tail> DIndexOf<Target, Index> for DCons<Name, Size, Tail>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Name: Dim,
     Size: Unsigned,
     Tail: DimList + DExtractDim,
@@ -215,7 +215,7 @@ where
 impl<Index, IRemain, Target, TRemain, Name, Size, Tail>
     DIndexOfMany<LCons<Target, TRemain>, LCons<Index, IRemain>> for DCons<Name, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     IRemain: TList,
     Target: Dim,
     TRemain: TList,
@@ -244,13 +244,13 @@ pub trait DSizeAt<Target, Index>
 where
     Self: DimList,
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self::Output: Unsigned,
 {
     type Output;
 }
 
-impl<Target, Size, Tail> DSizeAt<Target, Here> for DCons<Target, Size, Tail>
+impl<Target, Size, Tail> DSizeAt<Target, Current> for DCons<Target, Size, Tail>
 where
     Target: Dim,
     Size: Unsigned,
@@ -259,10 +259,10 @@ where
     type Output = Size;
 }
 
-impl<Target, Index, NonTarget, Size, Tail> DSizeAt<Target, There<Index>>
+impl<Target, Index, NonTarget, Size, Tail> DSizeAt<Target, Next<Index>>
     for DCons<NonTarget, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     Target: Dim,
     NonTarget: Dim,
     Size: Unsigned,
@@ -337,13 +337,13 @@ where
     Name: Dim,
     Size: Unsigned,
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self::Output: DimList,
 {
     type Output;
 }
 
-impl<NewName, NewSize, Target, Size, Tail> DInsertAt<NewName, NewSize, Target, Here>
+impl<NewName, NewSize, Target, Size, Tail> DInsertAt<NewName, NewSize, Target, Current>
     for DCons<Target, Size, Tail>
 where
     NewName: Dim,
@@ -356,9 +356,9 @@ where
 }
 
 impl<NewName, NewSize, Target, Index, NonTarget, Size, Tail>
-    DInsertAt<NewName, NewSize, Target, There<Index>> for DCons<NonTarget, Size, Tail>
+    DInsertAt<NewName, NewSize, Target, Next<Index>> for DCons<NonTarget, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     NewName: Dim,
     NewSize: Unsigned,
     Target: Dim,
@@ -384,7 +384,7 @@ pub type DExpandEndOutput<List, Name> = DAppendOutput<List, Name, U1>;
 pub trait DRemoveAt<Target, Index>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self: DimList,
     Self::Output: DimList,
 {
@@ -393,7 +393,7 @@ where
     fn index() -> usize;
 }
 
-impl<Target, Size, Tail> DRemoveAt<Target, Here> for DCons<Target, Size, Tail>
+impl<Target, Size, Tail> DRemoveAt<Target, Current> for DCons<Target, Size, Tail>
 where
     Target: Dim,
     Size: Unsigned,
@@ -406,10 +406,10 @@ where
     }
 }
 
-impl<Target, Index, NonTarget, Size, Tail> DRemoveAt<Target, There<Index>>
+impl<Target, Index, NonTarget, Size, Tail> DRemoveAt<Target, Next<Index>>
     for DCons<NonTarget, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     Target: Dim,
     NonTarget: Dim,
     Size: Unsigned,
@@ -429,14 +429,14 @@ pub type DRemoveAtOutput<List, Target, Index> = <List as DRemoveAt<Target, Index
 pub trait DMark<Target, Index>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self: DimList,
     Self::Output: DimList,
 {
     type Output;
 }
 
-impl<Target, Size, Tail> DMark<Target, Here> for DCons<Target, Size, Tail>
+impl<Target, Size, Tail> DMark<Target, Current> for DCons<Target, Size, Tail>
 where
     Target: Dim,
     Size: Unsigned,
@@ -445,11 +445,11 @@ where
     type Output = DMarkedCons<Target, Size, Tail>;
 }
 
-impl<Target, Index, NonTarget, Size, Tail> DMark<Target, There<Index>>
+impl<Target, Index, NonTarget, Size, Tail> DMark<Target, Next<Index>>
     for DCons<NonTarget, Size, Tail>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     NonTarget: Dim,
     Size: Unsigned,
     Tail: DimList + DMark<Target, Index>,
@@ -457,11 +457,11 @@ where
     type Output = DCons<NonTarget, Size, DMarkOutput<Tail, Target, Index>>;
 }
 
-impl<Target, Index, NonTarget, Size, Tail> DMark<Target, There<Index>>
+impl<Target, Index, NonTarget, Size, Tail> DMark<Target, Next<Index>>
     for DMarkedCons<NonTarget, Size, Tail>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     NonTarget: Dim,
     Size: Unsigned,
     Tail: DimList + DMark<Target, Index>,
@@ -504,7 +504,7 @@ impl<Target, TRemain, Index, IRemain, List> DMarkMany<LCons<Target, TRemain>, LC
 where
     Target: Dim,
     TRemain: TList,
-    Index: Where,
+    Index: Counter + Count,
     IRemain: TList,
     List: DimList + DMark<Target, Index>,
     DMarkOutput<List, Target, Index>: DMarkMany<TRemain, IRemain>,
@@ -520,7 +520,7 @@ where
     }
 
     fn append_indexes(prev: &mut Vec<usize>) {
-        prev.push(Index::COUNT_USIZE);
+        prev.push(CountOut::<Index>::USIZE);
         <DMarkOutput<List, Target, Index> as DMarkMany<TRemain, IRemain>>::append_indexes(prev);
     }
 }
@@ -597,7 +597,7 @@ pub type DRemoveManyOutput<List, Targets, Indexes> =
 pub trait DReduceToOne<Target, Index>
 where
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self: DimList,
     Self::Output: DimList,
 {
@@ -605,7 +605,7 @@ where
     type Output;
 }
 
-impl<Target, Size, Tail> DReduceToOne<Target, Here> for DCons<Target, Size, Tail>
+impl<Target, Size, Tail> DReduceToOne<Target, Current> for DCons<Target, Size, Tail>
 where
     Target: Dim,
     Size: Unsigned,
@@ -615,10 +615,10 @@ where
     type Output = DCons<Target, U1, Tail>;
 }
 
-impl<Index, Target, NonTarget, Size, Tail> DReduceToOne<Target, There<Index>>
+impl<Index, Target, NonTarget, Size, Tail> DReduceToOne<Target, Next<Index>>
     for DCons<NonTarget, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     Target: Dim,
     NonTarget: Dim,
     Size: Unsigned,
@@ -659,7 +659,7 @@ where
 impl<Index, IRemain, Target, TRemain, SomeDim, Size, Tail>
     DReduceManyToOne<LCons<Target, TRemain>, LCons<Index, IRemain>> for DCons<SomeDim, Size, Tail>
 where
-    Index: Where,
+    Index: Counter,
     IRemain: TList,
     Target: Dim,
     TRemain: TList,
@@ -735,7 +735,7 @@ where
     Lhs: DimList + DExtractDim,
     DExtractDimOutput<Lhs>: LSetEqual<DExtractDimOutput<Rhs>, Indexes>,
 {
-    type Output = LSetEqualOutput<DExtractDimOutput<Lhs>, DExtractDimOutput<Rhs>, Indexes>;
+    type Output = LSetEqualOut<DExtractDimOutput<Lhs>, DExtractDimOutput<Rhs>, Indexes>;
 }
 
 pub type DSetEqualOutput<Lhs, Rhs, Indexes> = <Lhs as DSetEqual<Rhs, Indexes>>::Output;
@@ -770,7 +770,7 @@ impl DPermute<LNil, LNil> for DNil {
 impl<Target, TRemain, Index, IRemain, Name, Size, Tail>
     DPermute<LCons<Target, TRemain>, LCons<Index, IRemain>> for DCons<Name, Size, Tail>
 where
-    Index: Where,
+    Index: Counter + Count,
     IRemain: TList,
     Target: Dim,
     TRemain: TList,
@@ -791,14 +791,14 @@ where
             <DRemoveAtOutput<Self, Target, Index> as DPermute<TRemain, IRemain>>::permute_index()
                 .into_iter()
                 .map(|idx| {
-                    if idx >= Index::COUNT_USIZE {
+                    if idx >= CountOut::<Index>::USIZE {
                         idx + 1
                     } else {
                         idx
                     }
                 })
                 .collect::<Vec<_>>();
-        indexes.insert(0, Index::COUNT_USIZE);
+        indexes.insert(0, CountOut::<Index>::USIZE);
         indexes
     }
 
@@ -932,7 +932,7 @@ pub trait DConcatAt<Rhs, Target, Index>
 where
     Rhs: DimList,
     Target: Dim,
-    Index: Where,
+    Index: Counter,
     Self: DimList,
     Self::Output: DimList,
 {
@@ -941,7 +941,7 @@ where
     type Output;
 }
 
-impl<RSize, RTail, Target, LSize, LTail> DConcatAt<DCons<Target, RSize, RTail>, Target, Here>
+impl<RSize, RTail, Target, LSize, LTail> DConcatAt<DCons<Target, RSize, RTail>, Target, Current>
     for DCons<Target, LSize, LTail>
 where
     RSize: Unsigned,
@@ -957,9 +957,9 @@ where
 }
 
 impl<Index, Name, Size, RTail, Target, LTail>
-    DConcatAt<DCons<Name, Size, RTail>, Target, There<Index>> for DCons<Name, Size, LTail>
+    DConcatAt<DCons<Name, Size, RTail>, Target, Next<Index>> for DCons<Name, Size, LTail>
 where
-    Index: Where,
+    Index: Counter,
     Name: Dim,
     Size: Unsigned,
     RTail: DimList,

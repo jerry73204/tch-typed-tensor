@@ -9,3 +9,4 @@ tch = { git = "https://github.com/LaurentMazare/tch-rs.git", branch = "master" }
 typenum = "~1"
 num = "~0"
 half = "~1"
+type-freak = { git = "https://github.com/jerry73204/rust-type-freak.git", branch = "master" }
