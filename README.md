@@ -32,7 +32,7 @@ and sometimes you would visit [tch-rs reference](https://docs.rs/tch/).
 
 ## Examples
 
-### Typed defined tensor and its properties
+### Name defined tensor dimensions, and typed properties
 
 The tensor type design moves most properties into types, including
 dimensions, data type and device. It ensures tensor operations are
