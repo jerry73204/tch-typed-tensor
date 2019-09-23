@@ -32,7 +32,7 @@ and sometimes you would visit [tch-rs reference](https://docs.rs/tch/).
 
 ## Examples
 
-### Typed defined tensor and its properties
+### Named dimensions, and typed properties
 
 The tensor type design moves most properties into types, including
 dimensions, data type and device. It ensures tensor operations are
@@ -66,7 +66,7 @@ fn main() {
 }
 ```
 
-### Compile-time bound check
+### Compile-time boundary check
 
 The type design keeps bound checking in mind. For example, it verifies whether
 `select()` index is bound by dimension in compile-time. Otherwise it triggers
