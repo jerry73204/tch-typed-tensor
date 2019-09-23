@@ -2,7 +2,7 @@ use super::NamedTensor;
 use crate::{
     device::TensorDevice,
     dim::DimList,
-    index::{IAssertBounded, IAssertBoundedOutput, IndexList},
+    index::{IndexList, IsIndexInBounded, IsIndexInBoundedOutput},
     kind::TensorKind,
 };
 use type_freak::control::IfOutput;
@@ -11,9 +11,9 @@ pub trait TensorValueAt<ValueType, Dims>
 where
     Dims: DimList,
 {
-    fn value_at<Indexes>(&self) -> IfOutput<ValueType, IAssertBoundedOutput<Indexes, Dims>>
+    fn value_at<Indexes>(&self) -> IfOutput<ValueType, IsIndexInBoundedOutput<Indexes, Dims>>
     where
-        Indexes: IndexList + IAssertBounded<Dims>;
+        Indexes: IndexList + IsIndexInBounded<Dims>;
 }
 
 impl<Dims, Kind, Dev> TensorValueAt<f64, Dims> for NamedTensor<Dims, Kind, Dev>

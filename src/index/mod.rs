@@ -1,7 +1,7 @@
 use crate::dim::{DCons, DNil, Dim, DimList};
 use std::marker::PhantomData;
 use type_freak::control::{IfLess, IfLessOrEqual, IfLessOrEqualOutput, IfLessOutput};
-use typenum::{IsLess, IsLessOrEqual, NonZero, Unsigned};
+use typenum::{NonZero, Unsigned};
 
 // index trait
 
@@ -112,7 +112,7 @@ where
 
 // bounded by dim
 
-pub trait IAssertBounded<Dims>
+pub trait IsIndexInBounded<Dims>
 where
     Self: IndexList,
     Dims: DimList,
@@ -120,37 +120,37 @@ where
     type Output;
 }
 
-impl IAssertBounded<DNil> for INil {
+impl IsIndexInBounded<DNil> for INil {
     type Output = ();
 }
 
-impl<Name, Size, DTail, Value, ITail> IAssertBounded<DCons<Name, Size, DTail>>
+impl<Name, Size, DTail, Value, ITail> IsIndexInBounded<DCons<Name, Size, DTail>>
     for ICons<Name, ForwardIndex<Value>, ITail>
 where
     Name: Dim,
     Size: Unsigned,
     DTail: DimList,
-    Value: Unsigned + IsLess<Size>,
-    ITail: IndexList + IAssertBounded<DTail>,
-    IAssertBoundedOutput<ITail, DTail>: IfLess<Value, Size>,
+    Value: Unsigned,
+    ITail: IndexList + IsIndexInBounded<DTail>,
+    IsIndexInBoundedOutput<ITail, DTail>: IfLess<Value, Size>,
 {
-    type Output = IfLessOutput<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
+    type Output = IfLessOutput<IsIndexInBoundedOutput<ITail, DTail>, Value, Size>;
 }
 
-impl<Name, Size, DTail, Value, ITail> IAssertBounded<DCons<Name, Size, DTail>>
+impl<Name, Size, DTail, Value, ITail> IsIndexInBounded<DCons<Name, Size, DTail>>
     for ICons<Name, BackwardIndex<Value>, ITail>
 where
     Name: Dim,
     Size: Unsigned,
     DTail: DimList,
-    Value: Unsigned + NonZero + IsLessOrEqual<Size>,
-    ITail: IndexList + IAssertBounded<DTail>,
-    IAssertBoundedOutput<ITail, DTail>: IfLessOrEqual<Value, Size>,
+    Value: Unsigned + NonZero,
+    ITail: IndexList + IsIndexInBounded<DTail>,
+    IsIndexInBoundedOutput<ITail, DTail>: IfLessOrEqual<Value, Size>,
 {
-    type Output = IfLessOrEqualOutput<IAssertBoundedOutput<ITail, DTail>, Value, Size>;
+    type Output = IfLessOrEqualOutput<IsIndexInBoundedOutput<ITail, DTail>, Value, Size>;
 }
 
-pub type IAssertBoundedOutput<IList, DList> = <IList as IAssertBounded<DList>>::Output;
+pub type IsIndexInBoundedOutput<IList, DList> = <IList as IsIndexInBounded<DList>>::Output;
 
 // macro
 
@@ -176,7 +176,7 @@ mod tests {
     type Dims = DimListType! {(A, U3), (B, U2), (C, U1), (D, U2)};
     type Indexes = IndexListType! {(A, +U2), (B, -U2), (C, +U0), (D, -U1)};
 
-    type Assert1 = IAssertBoundedOutput<Indexes, Dims>;
+    type Assert1 = IsIndexInBoundedOutput<Indexes, Dims>;
 
     #[test]
     fn tensor_index_test() {
