@@ -1,13 +1,15 @@
 mod broadcast;
+mod flatten;
 mod marker;
 
 pub use broadcast::*;
+pub use flatten::*;
 pub use marker::*;
 
 use std::marker::PhantomData;
 use type_freak::{
-    counter::{Count, CountOut, Counter, Current, Next},
-    list::{LCons, LIndexOf, LNil, LSetEqual, LSetEqualOut, TList},
+    counter::{Count, CountOutput, Counter, Current, Next},
+    list::{LCons, LIndexOf, LNil, LSetEqual, LSetEqualOutput, TList},
 };
 use typenum::{Sum, Unsigned, U1};
 
@@ -520,7 +522,7 @@ where
     }
 
     fn append_indexes(prev: &mut Vec<usize>) {
-        prev.push(CountOut::<Index>::USIZE);
+        prev.push(CountOutput::<Index>::USIZE);
         <DMarkOutput<List, Target, Index> as DMarkMany<TRemain, IRemain>>::append_indexes(prev);
     }
 }
@@ -735,7 +737,7 @@ where
     Lhs: DimList + DExtractDim,
     DExtractDimOutput<Lhs>: LSetEqual<DExtractDimOutput<Rhs>, Indexes>,
 {
-    type Output = LSetEqualOut<DExtractDimOutput<Lhs>, DExtractDimOutput<Rhs>, Indexes>;
+    type Output = LSetEqualOutput<DExtractDimOutput<Lhs>, DExtractDimOutput<Rhs>, Indexes>;
 }
 
 pub type DSetEqualOutput<Lhs, Rhs, Indexes> = <Lhs as DSetEqual<Rhs, Indexes>>::Output;
@@ -791,14 +793,14 @@ where
             <DRemoveAtOutput<Self, Target, Index> as DPermute<TRemain, IRemain>>::permute_index()
                 .into_iter()
                 .map(|idx| {
-                    if idx >= CountOut::<Index>::USIZE {
+                    if idx >= CountOutput::<Index>::USIZE {
                         idx + 1
                     } else {
                         idx
                     }
                 })
                 .collect::<Vec<_>>();
-        indexes.insert(0, CountOut::<Index>::USIZE);
+        indexes.insert(0, CountOutput::<Index>::USIZE);
         indexes
     }
 
@@ -900,32 +902,6 @@ where
 
 pub type DCombineEqualOutput<Lhs, Rhs> = <Lhs as DCombineEqual<Rhs>>::Output;
 
-// assert equal
-
-pub trait DAssertEqual<Rhs>
-where
-    Rhs: DimList,
-    Self: DimList,
-{
-    type Output;
-}
-
-impl DAssertEqual<DNil> for DNil {
-    type Output = ();
-}
-
-impl<Name, Size, RTail, LTail> DAssertEqual<DCons<Name, Size, RTail>> for DCons<Name, Size, LTail>
-where
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DAssertEqual<RTail>,
-    RTail: DimList,
-{
-    type Output = DAssertEqualOutput<LTail, RTail>;
-}
-
-pub type DAssertEqualOutput<Lhs, Rhs> = <Lhs as DAssertEqual<Rhs>>::Output;
-
 // concat
 
 pub trait DConcatAt<Rhs, Target, Index>
@@ -996,7 +972,8 @@ macro_rules! DimListType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{list::LAssertEqualOutput, make_dims, DimListType, TListType};
+    use crate::{make_dims, DimListType};
+    use type_freak::{control::IfSameOutput, TListType};
     use typenum::consts::*;
 
     make_dims! {A, B, C, D, E}
@@ -1006,76 +983,73 @@ mod tests {
     type AnotherDims = DimListType! {(D, U1), (E, U0)};
     type TheOtherDims = DimListType! {(A, U3), (B, U4), (C, U4)};
 
-    type Assert1 = LAssertEqualOutput<DExtractDimOutput<SomeDims>, TListType! {A, B, C}>;
-    type Assert2 = DAssertEqualOutput<
+    type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
+
+    type Assert1 = AssertSame<DExtractDimOutput<SomeDims>, TListType! {A, B, C}>;
+    type Assert2 = AssertSame<
         DPrependOutput<SomeDims, D, U5>,
         DimListType! {(D, U5), (A, U3), (B, U2), (C, U4)},
     >;
-    type Assert3 = DAssertEqualOutput<DPrependOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
+    type Assert3 = AssertSame<DPrependOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
 
-    type Assert4 = DAssertEqualOutput<
+    type Assert4 = AssertSame<
         DAppendOutput<SomeDims, D, U5>,
         DimListType! {(A, U3), (B, U2), (C, U4), (D, U5)},
     >;
-    type Assert5 = DAssertEqualOutput<DAppendOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
+    type Assert5 = AssertSame<DAppendOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
 
-    type Assert6<Idx> = DAssertEqualOutput<
+    type Assert6<Idx> = AssertSame<
         DInsertAtOutput<SomeDims, D, U5, B, Idx>,
         DimListType! {(A, U3), (D, U5), (B, U2), (C, U4)},
     >;
 
-    type Assert7<Idx> = DAssertEqualOutput<
+    type Assert7<Idx> = AssertSame<
         DExpandAtOutput<SomeDims, D, B, Idx>,
         DimListType! {(A, U3), (D, U1), (B, U2), (C, U4)},
     >;
 
-    type Assert8 = DAssertEqualOutput<
+    type Assert8 = AssertSame<
         DExpandEndOutput<SomeDims, D>,
         DimListType! {(A, U3), (B, U2), (C, U4), (D, U1)},
     >;
 
     type Assert9<Idx> =
-        DAssertEqualOutput<DRemoveAtOutput<SomeDims, B, Idx>, DimListType! {(A, U3), (C, U4)}>;
+        AssertSame<DRemoveAtOutput<SomeDims, B, Idx>, DimListType! {(A, U3), (C, U4)}>;
 
-    type Assert10<Idx> = DAssertEqualOutput<
-        DRemoveManyOutput<SomeDims, TListType! {A, C}, Idx>,
-        DimListType! {(B, U2)},
-    >;
+    type Assert10<Idx> =
+        AssertSame<DRemoveManyOutput<SomeDims, TListType! {A, C}, Idx>, DimListType! {(B, U2)}>;
 
     type Assert11<Idx> =
-        DAssertEqualOutput<DRemoveManyOutput<SomeDims, TListType! {C, A, B}, Idx>, DimListType! {}>;
+        AssertSame<DRemoveManyOutput<SomeDims, TListType! {C, A, B}, Idx>, DimListType! {}>;
 
-    type Assert12<Idx> = DAssertEqualOutput<
-        DReduceToOneOutput<SomeDims, A, Idx>,
-        DimListType! {(A, U1), (B, U2), (C, U4)},
-    >;
+    type Assert12<Idx> =
+        AssertSame<DReduceToOneOutput<SomeDims, A, Idx>, DimListType! {(A, U1), (B, U2), (C, U4)}>;
 
-    type Assert13<Idx> = DAssertEqualOutput<
+    type Assert13<Idx> = AssertSame<
         DReduceManyToOneOutput<SomeDims, TListType! {C, A, B}, Idx>,
         DimListType! {(A, U1), (B, U1), (C, U1)},
     >;
 
-    type Assert14 =
-        DAssertEqualOutput<DReverseOutput<SomeDims>, DimListType! {(C, U4), (B, U2), (A, U3)}>;
+    type Assert14 = AssertSame<DReverseOutput<SomeDims>, DimListType! {(C, U4), (B, U2), (A, U3)}>;
 
     type Assert15<Idx> = DSetEqualOutput<SomeDims, DimListType! {(C, U4), (B, U2), (A, U3)}, Idx>;
 
-    type Assert16<Idx> = DAssertEqualOutput<
+    type Assert16<Idx> = AssertSame<
         DPermuteOutput<SomeDims, TListType! {C, A, B}, Idx>,
         DimListType! {(C, U4), (A, U3), (B, U2)},
     >;
 
-    type Assert17 = DAssertEqualOutput<
+    type Assert17 = AssertSame<
         DExtendOutput<SomeDims, AnotherDims>,
         DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U0)},
     >;
 
-    type Assert18 = DAssertEqualOutput<
+    type Assert18 = AssertSame<
         DCombineEqualOutput<SomeDims, SomeDims>,
         DimListType! {(A, U3), (B, U2), (C, U4)},
     >;
 
-    type Assert19<Idx> = DAssertEqualOutput<
+    type Assert19<Idx> = AssertSame<
         DConcatAtOutput<SomeDims, TheOtherDims, B, Idx>,
         DimListType! {(A, U3), (B, U6), (C, U4)},
     >;

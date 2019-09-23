@@ -5,13 +5,13 @@ use crate::{
     index::{IAssertBounded, IAssertBoundedOutput, IndexList},
     kind::TensorKind,
 };
-use type_freak::control::IfOut;
+use type_freak::control::IfOutput;
 
 pub trait TensorValueAt<ValueType, Dims>
 where
     Dims: DimList,
 {
-    fn value_at<Indexes>(&self) -> IfOut<ValueType, IAssertBoundedOutput<Indexes, Dims>>
+    fn value_at<Indexes>(&self) -> IfOutput<ValueType, IAssertBoundedOutput<Indexes, Dims>>
     where
         Indexes: IndexList + IAssertBounded<Dims>;
 }

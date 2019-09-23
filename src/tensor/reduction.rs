@@ -4,7 +4,7 @@ use super::{
 };
 use type_freak::{
     boolean::Boolean,
-    counter::{Count, CountOut, Counter},
+    counter::{Count, CountOutput, Counter},
     list::NonEmptyTList,
     TListType,
 };
@@ -218,7 +218,7 @@ where
     {
         let (reduced_tch_tensor, index_tch_tensor) = self
             .tensor
-            .max2(CountOut::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
+            .max2(CountOutput::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
 
         let reduced_tensor = NamedTensor::from_tch_tensor(reduced_tch_tensor);
         let index_tensor = NamedTensor::from_tch_tensor(index_tch_tensor);
@@ -284,7 +284,7 @@ where
     {
         let (reduced_tch_tensor, index_tch_tensor) = self
             .tensor
-            .min2(CountOut::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
+            .min2(CountOutput::<Index>::I64, KeepDimOrNotOutput::<Keep>::BOOL);
 
         let reduced_tensor = NamedTensor::from_tch_tensor(reduced_tch_tensor);
         let index_tensor = NamedTensor::from_tch_tensor(index_tch_tensor);
@@ -301,8 +301,9 @@ mod tests {
     use crate::{
         device::Cpu,
         kind::{Double, Float},
-        make_dims, DimListType, TListType,
+        make_dims, DimListType,
     };
+    use type_freak::TListType;
     use typenum::consts::*;
 
     make_dims! {A, B, C}

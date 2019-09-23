@@ -143,7 +143,8 @@ pub type BroadcastDimReverseOutput<Lhs, Rhs, Matcher> =
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dim::DAssertEqualOutput, make_dims, DimListType};
+    use crate::{make_dims, DimListType};
+    use type_freak::control::IfSameOutput;
     use typenum::consts::*;
 
     make_dims! {A, B, C, D, E}
@@ -153,22 +154,24 @@ mod tests {
     type ZDims = DimListType! {(A, U1), (B, U2), (C, U4), (D, U1), (E, U9)};
     type WDims = DimListType! {(E, U5), (D, U3), (A, U1), (B, U2), (C, U4)};
 
-    type Assert1<Matcher> = DAssertEqualOutput<
+    type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
+
+    type Assert1<Matcher> = AssertSame<
         BroadcastDimOutput<XDims, YDims, Matcher>,
         DimListType! {(A, U3), (B, U2), (C, U4)},
     >;
 
-    type Assert2<Matcher> = DAssertEqualOutput<
+    type Assert2<Matcher> = AssertSame<
         BroadcastDimOutput<XDims, ZDims, Matcher>,
         DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)},
     >;
 
-    type Assert3<Matcher> = DAssertEqualOutput<
+    type Assert3<Matcher> = AssertSame<
         BroadcastDimReverseOutput<XDims, YDims, Matcher>,
         DimListType! {(A, U3), (B, U2), (C, U4)},
     >;
 
-    type Assert4<Matcher> = DAssertEqualOutput<
+    type Assert4<Matcher> = AssertSame<
         BroadcastDimReverseOutput<XDims, WDims, Matcher>,
         DimListType! {(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)},
     >;

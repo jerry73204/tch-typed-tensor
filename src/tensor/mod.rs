@@ -4,8 +4,8 @@ mod reduction;
 mod value_at;
 
 use type_freak::{
-    control::{IfLess, IfLessOut},
-    counter::{Count, CountOut, Counter},
+    control::{IfLess, IfLessOutput},
+    counter::{Count, CountOutput, Counter},
     list::TList,
 };
 
@@ -156,7 +156,7 @@ where
     pub fn select<SelectedIndex, Target, TargetIndex>(
         &self,
     ) -> NamedTensor<
-        IfLessOut<
+        IfLessOutput<
             DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
             DSizeAtOutput<Dims, Target, TargetIndex>,
@@ -171,13 +171,13 @@ where
         TargetIndex: Counter + Count,
         DRemoveAtOutput<Dims, Target, TargetIndex>:
             IfLess<SelectedIndex, DSizeAtOutput<Dims, Target, TargetIndex>>,
-        IfLessOut<
+        IfLessOutput<
             DRemoveAtOutput<Dims, Target, TargetIndex>,
             SelectedIndex,
             DSizeAtOutput<Dims, Target, TargetIndex>,
         >: DimList,
     {
-        let target_index = CountOut::<TargetIndex>::I64;
+        let target_index = CountOutput::<TargetIndex>::I64;
         NamedTensor::from_tch_tensor(
             self.tensor
                 .select(target_index as i64, SelectedIndex::to_i64()),
