@@ -1,5 +1,6 @@
 mod full_op;
 mod keepdim;
+mod pow_op;
 mod reduction;
 mod value_at;
 
@@ -21,6 +22,7 @@ use crate::{
 };
 pub use full_op::*;
 pub use keepdim::*;
+pub use pow_op::*;
 pub use reduction::*;
 use std::marker::PhantomData;
 use tch::{Device as TchDevice, Kind as TchKind, Tensor};
@@ -122,6 +124,70 @@ where
         NewDevice: TensorDevice,
     {
         NamedTensor::from_tch_tensor(self.tensor.to_device(Self::DEVICE))
+    }
+
+    pub fn neg(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.neg())
+    }
+
+    pub fn reciprocal(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.reciprocal())
+    }
+
+    pub fn rsqrt(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.rsqrt())
+    }
+
+    pub fn sqrt(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.sqrt())
+    }
+
+    pub fn round(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.round())
+    }
+
+    pub fn floor(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.floor())
+    }
+
+    pub fn ceil(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.ceil())
+    }
+
+    pub fn sin(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.sin())
+    }
+
+    pub fn cos(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.cos())
+    }
+
+    pub fn tan(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.tan())
+    }
+
+    pub fn sinh(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.sinh())
+    }
+
+    pub fn cosh(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.cosh())
+    }
+
+    pub fn tanh(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.tanh())
+    }
+
+    pub fn sign(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.sign())
+    }
+
+    pub fn trunc(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.trunc())
+    }
+
+    pub fn sigmoid(&self) -> Self {
+        NamedTensor::from_tch_tensor(self.tensor.sigmoid())
     }
 
     pub fn transpose<NewDims, Indexes>(
