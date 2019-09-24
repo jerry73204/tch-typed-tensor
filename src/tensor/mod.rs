@@ -12,9 +12,10 @@ use type_freak::{
 use crate::{
     device::TensorDevice,
     dim::{
-        DConcatAt, DConcatAtOutput, DFlatten, DFlattenBeginIndex, DFlattenEndIndex, DFlattenOutput,
-        DIndexOfMany, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt, DSizeAtOutput,
-        Dim, DimList,
+        BroadcastMatcher, DConcatAt, DConcatAtOutput, DFlatten, DFlattenBeginIndex,
+        DFlattenEndIndex, DFlattenOutput, DIndexOfMany, DMatMul, DMatMulBroadcasted,
+        DMatMulBroadcastedOutput, DMatMulOutput, DPermute, DPermuteOutput, DRemoveAt,
+        DRemoveAtOutput, DSizeAt, DSizeAtOutput, Dim, DimList, MatrixDim,
     },
     kind::TensorKind,
 };

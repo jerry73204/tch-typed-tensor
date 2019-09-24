@@ -112,15 +112,13 @@ pub type DPrependOutput<List, Name, Size> = <List as DPrepend<Name, Size>>::Outp
 mod tests {
     use super::*;
     use crate::{make_dims, DimListType};
-    use type_freak::{control::IfSameOutput, TListType};
+    use type_freak::control::IfSameOutput;
     use typenum::consts::*;
 
     make_dims! {A, B, C, D, E}
 
     type EmptyDims = DimListType! {};
     type SomeDims = DimListType! {(A, U3), (B, U2), (C, U4)};
-    type AnotherDims = DimListType! {(D, U1), (E, U0)};
-    type TheOtherDims = DimListType! {(A, U3), (B, U4), (C, U4)};
 
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 

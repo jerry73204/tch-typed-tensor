@@ -1,5 +1,5 @@
 use super::{
-    BcastAbscent, BroadcastMatcher, DBroadcastBothReversely, DBroadcastBothReverselyOutput, DCons,
+    BcastAbscent, BroadcastMatcher, DBroadcastBothReversely, DBroadcastBothReverselyOutput,
     DReverse, DReverseOutput, Dim, DimList, MatrixDim,
 };
 
