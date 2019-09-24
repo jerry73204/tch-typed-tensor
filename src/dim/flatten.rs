@@ -1,10 +1,12 @@
 use super::{DCons, DNil, Dim, DimList, NonScalarDim};
 use std::ops::Mul;
 use type_freak::counter::{Counter, Current, Next};
-use typenum::{consts::*, Prod, Unsigned};
+use typenum::{Prod, Unsigned, U1};
 
 // flatten from one dim to another dim
 
+/// A type operator that replace a range of dimensions from `Begin`
+/// to `End` with `NewName`, which size is computed by product of replaced sizes.
 pub trait DFlatten<NewName, Begin, End, BeginIndex, EndIndex>
 where
     NewName: Dim,
@@ -53,6 +55,7 @@ where
 
 // auxiliary trait for DFlatten
 
+/// An auxiliary trait for [DFlatten].
 pub trait DFlattening<NewName, ProdSize, End, EndIndex>
 where
     NewName: Dim,
@@ -98,6 +101,8 @@ where
 
 // flatten from one dim to the end
 
+/// A type operator that replaces all dimensions after `Begin` with `NewName`,
+/// which size is product is rest of replaced sizes.
 pub trait DFlattenFrom<NewName, Begin, BeginIndex>
 where
     NewName: Dim,
@@ -137,6 +142,7 @@ where
 
 // auxiliary trait for DFlattenfrom
 
+/// An auxiliary trait for [DFlattenFrom].
 pub trait DFlatteningFrom<NewName, ProdSize>
 where
     NewName: Dim,
@@ -173,6 +179,9 @@ where
 
 // flatten from beginning to one dim
 
+/// A type operator that places all dimensions from beginning
+/// to `End` inclusively with `NewName`, which size is product
+/// of replaced sized.
 pub trait DFlattenUntil<NewName, End, EndIndex>
 where
     NewName: Dim,
@@ -199,6 +208,7 @@ where
 
 // auxiliary trait for DFlattenUntil
 
+/// An auxiliary trait for [DFlattenUntil].
 pub trait DFlatteningUntil<NewName, ProdSize, End, EndIndex>
 where
     NewName: Dim,
