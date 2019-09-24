@@ -277,35 +277,17 @@ where
         NamedTensor::from_tch_tensor(self.tensor.matmul(&rhs.tensor))
     }
 
-    pub fn select<SelectedIndex, Target, TargetIndex>(
+    pub fn select<Position, Target, Index>(
         &self,
-    ) -> NamedTensor<
-        IfLessOutput<
-            DRemoveAtOutput<Dims, Target, TargetIndex>,
-            SelectedIndex,
-            DSizeAtOutput<Dims, Target, TargetIndex>,
-        >,
-        Kind,
-        Dev,
-    >
+    ) -> NamedTensor<DRemoveAtOutput<Dims, Target, Index>, Kind, Dev>
     where
-        Dims: DRemoveAt<Target, TargetIndex> + DSizeAt<Target, TargetIndex>,
-        SelectedIndex: Unsigned + IsLess<DSizeAtOutput<Dims, Target, TargetIndex>>,
+        Dims: DRemoveAt<Target, Index> + DSizeAt<Target, Index>,
+        Position: Unsigned + IfLess<Position, DSizeAtOutput<Dims, Target, Index>>,
         Target: Dim,
-        TargetIndex: Counter + Count,
-        DRemoveAtOutput<Dims, Target, TargetIndex>:
-            IfLess<SelectedIndex, DSizeAtOutput<Dims, Target, TargetIndex>>,
-        IfLessOutput<
-            DRemoveAtOutput<Dims, Target, TargetIndex>,
-            SelectedIndex,
-            DSizeAtOutput<Dims, Target, TargetIndex>,
-        >: DimList,
+        Index: Counter + Count,
     {
-        let target_index = CountOutput::<TargetIndex>::I64;
-        NamedTensor::from_tch_tensor(
-            self.tensor
-                .select(target_index as i64, SelectedIndex::to_i64()),
-        )
+        let target_index = CountOutput::<Index>::I64;
+        NamedTensor::from_tch_tensor(self.tensor.select(target_index as i64, Position::to_i64()))
     }
 }
 
