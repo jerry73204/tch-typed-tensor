@@ -12,8 +12,8 @@ use type_freak::{
 use crate::{
     device::TensorDevice,
     dim::{
-        DConcatAt, DConcatAtOutput, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt,
-        DSizeAtOutput, Dim, DimList,
+        DConcatAt, DConcatAtOutput, DIndexOfMany, DPermute, DPermuteOutput, DRemoveAt,
+        DRemoveAtOutput, DSizeAt, DSizeAtOutput, Dim, DimList,
     },
     kind::TensorKind,
 };
@@ -136,6 +136,20 @@ where
             .collect::<Vec<_>>();
 
         NamedTensor::from_tch_tensor(self.tensor.permute(&indexes))
+    }
+
+    pub fn flip<SelectedDims, Indexes>(&self) -> Self
+    where
+        Indexes: TList,
+        SelectedDims: TList,
+        Dims: DIndexOfMany<SelectedDims, Indexes>,
+    {
+        let indexes = <Dims as DIndexOfMany<SelectedDims, Indexes>>::indexes()
+            .into_iter()
+            .map(|idx| idx as i64)
+            .collect::<Vec<_>>();
+
+        NamedTensor::from_tch_tensor(self.tensor.flip(&indexes))
     }
 
     pub fn concat<Target, Index, RDimList>(
