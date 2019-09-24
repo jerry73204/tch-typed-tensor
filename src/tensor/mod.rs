@@ -187,6 +187,29 @@ where
         NamedTensor::from_tch_tensor(self.tensor.flatten(begin_index, end_index))
     }
 
+    pub fn mm<RhsDims>(
+        &self,
+        rhs: NamedTensor<RhsDims, Kind, Dev>,
+    ) -> NamedTensor<DMatMulOutput<Dims, RhsDims>, Kind, Dev>
+    where
+        Dims: MatrixDim + DMatMul<RhsDims>,
+        RhsDims: MatrixDim,
+    {
+        NamedTensor::from_tch_tensor(self.tensor.mm(&rhs.tensor))
+    }
+
+    pub fn matmul<RhsDims, Matcher>(
+        &self,
+        rhs: NamedTensor<RhsDims, Kind, Dev>,
+    ) -> NamedTensor<DMatMulBroadcastedOutput<Dims, RhsDims, Matcher>, Kind, Dev>
+    where
+        Dims: DMatMulBroadcasted<RhsDims, Matcher>,
+        RhsDims: DimList,
+        Matcher: BroadcastMatcher,
+    {
+        NamedTensor::from_tch_tensor(self.tensor.matmul(&rhs.tensor))
+    }
+
     pub fn select<SelectedIndex, Target, TargetIndex>(
         &self,
     ) -> NamedTensor<
