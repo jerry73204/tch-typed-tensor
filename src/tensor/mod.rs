@@ -12,8 +12,9 @@ use type_freak::{
 use crate::{
     device::TensorDevice,
     dim::{
-        DConcatAt, DConcatAtOutput, DIndexOfMany, DPermute, DPermuteOutput, DRemoveAt,
-        DRemoveAtOutput, DSizeAt, DSizeAtOutput, Dim, DimList,
+        DConcatAt, DConcatAtOutput, DFlatten, DFlattenBeginIndex, DFlattenEndIndex, DFlattenOutput,
+        DIndexOfMany, DPermute, DPermuteOutput, DRemoveAt, DRemoveAtOutput, DSizeAt, DSizeAtOutput,
+        Dim, DimList,
     },
     kind::TensorKind,
 };
@@ -165,6 +166,25 @@ where
         let index = <Dims as DConcatAt<RDimList, Target, Index>>::INDEX;
         let tensor = Tensor::cat(&[&self.tensor, &rhs.tensor], index as i64);
         NamedTensor::from_tch_tensor(tensor)
+    }
+
+    pub fn flatten<NewDim, BeginDim, EndDim, BeginIndex, EndIndex>(
+        &self,
+    ) -> NamedTensor<DFlattenOutput<Dims, NewDim, BeginDim, EndDim, BeginIndex, EndIndex>, Kind, Dev>
+    where
+        NewDim: Dim,
+        BeginDim: Dim,
+        EndDim: Dim,
+        BeginIndex: Counter,
+        EndIndex: Counter,
+        Dims: DFlatten<NewDim, BeginDim, EndDim, BeginIndex, EndIndex>,
+    {
+        let begin_index =
+            DFlattenBeginIndex::<Dims, NewDim, BeginDim, EndDim, BeginIndex, EndIndex>::I64;
+        let end_index =
+            DFlattenEndIndex::<Dims, NewDim, BeginDim, EndDim, BeginIndex, EndIndex>::I64;
+
+        NamedTensor::from_tch_tensor(self.tensor.flatten(begin_index, end_index))
     }
 
     pub fn select<SelectedIndex, Target, TargetIndex>(

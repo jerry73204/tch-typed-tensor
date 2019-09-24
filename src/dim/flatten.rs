@@ -1,6 +1,6 @@
 use super::{DCons, DNil, Dim, DimList, NonScalarDim};
 use std::ops::Mul;
-use type_freak::counter::{Counter, Current, Next};
+use type_freak::counter::{Count, CountOutput, Counter, Current, Next};
 use typenum::{Prod, Unsigned, U1};
 
 // flatten from one dim to another dim
@@ -16,12 +16,20 @@ where
     EndIndex: Counter,
     Self: NonScalarDim,
     Self::Output: NonScalarDim,
+    Self::BeginIndex: Unsigned,
+    Self::EndIndex: Unsigned,
 {
     type Output;
+    type BeginIndex;
+    type EndIndex;
 }
 
 pub type DFlattenOutput<List, NewName, Begin, End, BeginIndex, EndIndex> =
     <List as DFlatten<NewName, Begin, End, BeginIndex, EndIndex>>::Output;
+pub type DFlattenBeginIndex<List, NewName, Begin, End, BeginIndex, EndIndex> =
+    <List as DFlatten<NewName, Begin, End, BeginIndex, EndIndex>>::BeginIndex;
+pub type DFlattenEndIndex<List, NewName, Begin, End, BeginIndex, EndIndex> =
+    <List as DFlatten<NewName, Begin, End, BeginIndex, EndIndex>>::EndIndex;
 
 impl<NewName, Begin, End, EndIndex, Size, Tail> DFlatten<NewName, Begin, End, Current, EndIndex>
     for DCons<Begin, Size, Tail>
@@ -29,28 +37,34 @@ where
     NewName: Dim,
     Begin: Dim,
     End: Dim,
-    EndIndex: Counter,
+    EndIndex: Counter + Count,
     Size: Unsigned,
     Tail: NonScalarDim,
     Self: DFlattening<NewName, U1, End, EndIndex>,
 {
     type Output = DFlatteningOutput<Self, NewName, U1, End, EndIndex>;
+    type BeginIndex = CountOutput<Current>;
+    type EndIndex = CountOutput<EndIndex>;
 }
 
 impl<NewName, Begin, BeginIndex, End, EndIndex, NonBegin, Size, Tail>
-    DFlatten<NewName, Begin, End, Next<BeginIndex>, EndIndex> for DCons<NonBegin, Size, Tail>
+    DFlatten<NewName, Begin, End, Next<BeginIndex>, Next<EndIndex>> for DCons<NonBegin, Size, Tail>
 where
     NewName: Dim,
     Begin: Dim,
     End: Dim,
-    BeginIndex: Counter,
-    EndIndex: Counter,
+    BeginIndex: Counter + Count,
+    EndIndex: Counter + Count,
     NonBegin: Dim,
     Size: Unsigned,
     Tail: NonScalarDim + DFlatten<NewName, Begin, End, BeginIndex, EndIndex>,
+    Next<BeginIndex>: Count,
+    Next<EndIndex>: Count,
 {
     type Output =
         DCons<NonBegin, Size, DFlattenOutput<Tail, NewName, Begin, End, BeginIndex, EndIndex>>;
+    type BeginIndex = CountOutput<Next<BeginIndex>>;
+    type EndIndex = CountOutput<Next<EndIndex>>;
 }
 
 // auxiliary trait for DFlatten
@@ -112,10 +126,14 @@ where
     Self::Output: NonScalarDim,
 {
     type Output;
+    type Index;
 }
 
 pub type DFlattenFromOutput<List, NewName, Begin, BeginIndex> =
     <List as DFlattenFrom<NewName, Begin, BeginIndex>>::Output;
+
+pub type DFlattenFromIndex<List, NewName, Begin, BeginIndex> =
+    <List as DFlattenFrom<NewName, Begin, BeginIndex>>::Index;
 
 impl<NewName, Begin, Size, Tail> DFlattenFrom<NewName, Begin, Current> for DCons<Begin, Size, Tail>
 where
@@ -125,6 +143,7 @@ where
     Tail: DimList + DFlatteningFrom<NewName, Size>,
 {
     type Output = DFlatteningFromOutput<Tail, NewName, Size>;
+    type Index = CountOutput<Current>;
 }
 
 impl<NewName, Begin, BeginIndex, NonBegin, Size, Tail>
@@ -132,12 +151,14 @@ impl<NewName, Begin, BeginIndex, NonBegin, Size, Tail>
 where
     NewName: Dim,
     Begin: Dim,
-    BeginIndex: Counter,
+    BeginIndex: Counter + Count,
     NonBegin: Dim,
     Size: Unsigned,
     Tail: DimList + DFlattenFrom<NewName, Begin, BeginIndex>,
+    Next<BeginIndex>: Count,
 {
     type Output = DCons<NonBegin, Size, DFlattenFromOutput<Tail, NewName, Begin, BeginIndex>>;
+    type Index = CountOutput<Next<BeginIndex>>;
 }
 
 // auxiliary trait for DFlattenfrom
@@ -191,19 +212,24 @@ where
     Self::Output: NonScalarDim,
 {
     type Output;
+    type Index;
 }
 
 pub type DFlattenUntilOutput<List, NewName, End, EndIndex> =
     <List as DFlattenUntil<NewName, End, EndIndex>>::Output;
 
+pub type DFlattenUntilIndex<List, NewName, End, EndIndex> =
+    <List as DFlattenUntil<NewName, End, EndIndex>>::Index;
+
 impl<List, NewName, End, EndIndex> DFlattenUntil<NewName, End, EndIndex> for List
 where
     NewName: Dim,
     End: Dim,
-    EndIndex: Counter,
+    EndIndex: Counter + Count,
     Self: NonScalarDim + DFlatteningUntil<NewName, U1, End, EndIndex>,
 {
     type Output = DFlatteningUntilOutput<List, NewName, U1, End, EndIndex>;
+    type Index = CountOutput<EndIndex>;
 }
 
 // auxiliary trait for DFlattenUntil
@@ -267,8 +293,16 @@ mod tests {
 
     // DFlatten
     type Dims1<From, To> = DFlattenOutput<Dims, New, A, D, From, To>;
+    type Begin1<From, To> = DFlattenBeginIndex<Dims, New, A, D, From, To>;
+    type End1<From, To> = DFlattenEndIndex<Dims, New, A, D, From, To>;
+
     type Dims2<From, To> = DFlattenOutput<Dims, New, B, C, From, To>;
+    type Begin2<From, To> = DFlattenBeginIndex<Dims, New, B, C, From, To>;
+    type End2<From, To> = DFlattenEndIndex<Dims, New, B, C, From, To>;
+
     type Dims3<From, To> = DFlattenOutput<Dims, New, B, B, From, To>;
+    type Begin3<From, To> = DFlattenBeginIndex<Dims, New, B, B, From, To>;
+    type End3<From, To> = DFlattenEndIndex<Dims, New, B, B, From, To>;
 
     type Assert1<From, To> = IfSameOutput<(), Dims1<From, To>, DimListType! {(New, U210)}>;
     type Assert2<From, To> =
@@ -278,8 +312,13 @@ mod tests {
 
     // DFlattenFrom
     type Dims4<Index> = DFlattenFromOutput<Dims, New, A, Index>;
+    type Index4<Index> = DFlattenFromIndex<Dims, New, A, Index>;
+
     type Dims5<Index> = DFlattenFromOutput<Dims, New, C, Index>;
+    type Index5<Index> = DFlattenFromIndex<Dims, New, C, Index>;
+
     type Dims6<Index> = DFlattenFromOutput<Dims, New, D, Index>;
+    type Index6<Index> = DFlattenFromIndex<Dims, New, D, Index>;
 
     type Assert4<Index> = IfSameOutput<(), Dims4<Index>, DimListType! {(New, U210)}>;
     type Assert5<Index> =
@@ -289,8 +328,13 @@ mod tests {
 
     // DFlattenUntil
     type Dims7<Index> = DFlattenUntilOutput<Dims, New, D, Index>;
+    type Index7<Index> = DFlattenUntilIndex<Dims, New, D, Index>;
+
     type Dims8<Index> = DFlattenUntilOutput<Dims, New, B, Index>;
+    type Index8<Index> = DFlattenUntilIndex<Dims, New, B, Index>;
+
     type Dims9<Index> = DFlattenUntilOutput<Dims, New, A, Index>;
+    type Index9<Index> = DFlattenUntilIndex<Dims, New, A, Index>;
 
     type Assert7<Index> = IfSameOutput<(), Dims7<Index>, DimListType! {(New, U210)}>;
     type Assert8<Index> =
@@ -301,15 +345,33 @@ mod tests {
     #[test]
     fn tensor_flatten_test() {
         let _: Assert1<_, _> = ();
+        assert_eq!(Begin1::USIZE, 0);
+        assert_eq!(End1::USIZE, 3);
+
         let _: Assert2<_, _> = ();
+        assert_eq!(Begin2::USIZE, 1);
+        assert_eq!(End2::USIZE, 2);
+
         let _: Assert3<_, _> = ();
+        assert_eq!(Begin3::USIZE, 1);
+        assert_eq!(End3::USIZE, 1);
 
         let _: Assert4<_> = ();
+        assert_eq!(Index4::USIZE, 0);
+
         let _: Assert5<_> = ();
+        assert_eq!(Index5::USIZE, 2);
+
         let _: Assert6<_> = ();
+        assert_eq!(Index6::USIZE, 3);
 
         let _: Assert7<_> = ();
+        assert_eq!(Index7::USIZE, 3);
+
         let _: Assert8<_> = ();
+        assert_eq!(Index8::USIZE, 1);
+
         let _: Assert9<_> = ();
+        assert_eq!(Index9::USIZE, 0);
     }
 }
