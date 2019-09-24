@@ -1,17 +1,27 @@
 mod broadcast;
 mod flatten;
+mod insert;
+mod macros;
+mod mark;
 mod marker;
+mod matmul;
+mod remove;
 
 pub use broadcast::*;
 pub use flatten::*;
+pub use insert::*;
+pub use macros::*;
+pub use mark::*;
 pub use marker::*;
+pub use matmul::*;
+pub use remove::*;
 
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Sub};
 use type_freak::{
     counter::{Count, CountOutput, Counter, Current, Next},
     list::{LCons, LIndexOf, LNil, LSetEqual, LSetEqualOutput, TList},
 };
-use typenum::{Sum, Unsigned, U1};
+use typenum::{NonZero, Sub1, Sum, Unsigned, B1, U0, U1};
 
 // dimension list
 
@@ -107,7 +117,7 @@ where
     }
 }
 
-// special marked node for remove-many op
+// marked node for remove-many op
 
 pub struct DMarkedCons<Name, Size, Tail>
 where
@@ -240,6 +250,77 @@ where
     }
 }
 
+// dimension at index
+
+pub trait DDimAtIndex<Position, Index>
+where
+    Position: Unsigned,
+    Index: Counter,
+    Self: NonScalarDim,
+    Self::Name: Dim,
+    Self::Size: Unsigned,
+{
+    type Name;
+    type Size;
+}
+
+pub type DDimAtIndexName<List, Position, Index> = <List as DDimAtIndex<Position, Index>>::Name;
+pub type DDimAtIndexSize<List, Position, Index> = <List as DDimAtIndex<Position, Index>>::Size;
+
+impl<Name, Size, Tail> DDimAtIndex<U0, Current> for DCons<Name, Size, Tail>
+where
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList,
+{
+    type Name = Name;
+    type Size = Size;
+}
+
+impl<Position, Index, Name, Size, Tail> DDimAtIndex<Position, Next<Index>>
+    for DCons<Name, Size, Tail>
+where
+    Position: Unsigned + NonZero + Sub<B1>,
+    Index: Counter,
+    Name: Dim,
+    Size: Unsigned,
+    Tail: DimList + DDimAtIndex<Sub1<Position>, Index>,
+    Sub1<Position>: Unsigned,
+{
+    type Name = DDimAtIndexName<Tail, Sub1<Position>, Index>;
+    type Size = DDimAtIndexSize<Tail, Sub1<Position>, Index>;
+}
+
+// dimension at reverse index
+
+pub trait DDimAtReverseIndex<Position, Index>
+where
+    Position: Unsigned,
+    Index: Counter,
+    Self: DimList,
+    Self::Name: Dim,
+    Self::Size: Unsigned,
+{
+    type Name;
+    type Size;
+}
+
+impl<List, Position, Index> DDimAtReverseIndex<Position, Index> for List
+where
+    List: NonScalarDim + DReverse,
+    Position: Unsigned,
+    Index: Counter,
+    DReverseOutput<List>: DDimAtIndex<Position, Index>,
+{
+    type Name = DDimAtIndexName<DReverseOutput<List>, Position, Index>;
+    type Size = DDimAtIndexSize<DReverseOutput<List>, Position, Index>;
+}
+
+pub type DDimAtReverseIndexName<List, Position, Index> =
+    <List as DDimAtReverseIndex<Position, Index>>::Name;
+pub type DDimAtReverseIndexSize<List, Position, Index> =
+    <List as DDimAtReverseIndex<Position, Index>>::Size;
+
 // size at
 
 pub trait DSizeAt<Target, Index>
@@ -274,325 +355,6 @@ where
 }
 
 pub type DSizeAtOutput<List, Target, Index> = <List as DSizeAt<Target, Index>>::Output;
-
-// prepend
-
-pub trait DPrepend<Name, Size>
-where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-impl<Name, Size, List> DPrepend<Name, Size> for List
-where
-    Name: Dim,
-    Size: Unsigned,
-    List: DimList,
-{
-    type Output = DCons<Name, Size, List>;
-}
-
-pub type DPrependOutput<List, Name, Size> = <List as DPrepend<Name, Size>>::Output;
-
-// append
-
-pub trait DAppend<Name, Size>
-where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-impl<Name, Size> DAppend<Name, Size> for DNil
-where
-    Name: Dim,
-    Size: Unsigned,
-{
-    type Output = DCons<Name, Size, DNil>;
-}
-
-impl<NewName, NewSize, Name, Size, Tail> DAppend<NewName, NewSize> for DCons<Name, Size, Tail>
-where
-    NewName: Dim,
-    NewSize: Unsigned,
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList + DAppend<NewName, NewSize>,
-{
-    type Output = DCons<Name, Size, <Tail as DAppend<NewName, NewSize>>::Output>;
-}
-
-pub type DAppendOutput<List, Name, Size> = <List as DAppend<Name, Size>>::Output;
-
-// insert at
-
-pub trait DInsertAt<Name, Size, Target, Index>
-where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Target: Dim,
-    Index: Counter,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-impl<NewName, NewSize, Target, Size, Tail> DInsertAt<NewName, NewSize, Target, Current>
-    for DCons<Target, Size, Tail>
-where
-    NewName: Dim,
-    NewSize: Unsigned,
-    Target: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-{
-    type Output = DCons<NewName, NewSize, DCons<Target, Size, Tail>>;
-}
-
-impl<NewName, NewSize, Target, Index, NonTarget, Size, Tail>
-    DInsertAt<NewName, NewSize, Target, Next<Index>> for DCons<NonTarget, Size, Tail>
-where
-    Index: Counter,
-    NewName: Dim,
-    NewSize: Unsigned,
-    Target: Dim,
-    NonTarget: Dim,
-    Size: Unsigned,
-    Tail: DimList + DInsertAt<NewName, NewSize, Target, Index>,
-{
-    type Output = DCons<NonTarget, Size, DInsertAtOutput<Tail, NewName, NewSize, Target, Index>>;
-}
-
-pub type DInsertAtOutput<List, Name, Size, Target, Index> =
-    <List as DInsertAt<Name, Size, Target, Index>>::Output;
-
-// expand at and expand at end
-
-pub type DExpandAtOutput<List, Name, Target, Index> =
-    DInsertAtOutput<List, Name, U1, Target, Index>;
-
-pub type DExpandEndOutput<List, Name> = DAppendOutput<List, Name, U1>;
-
-// remove at
-
-pub trait DRemoveAt<Target, Index>
-where
-    Target: Dim,
-    Index: Counter,
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-
-    fn index() -> usize;
-}
-
-impl<Target, Size, Tail> DRemoveAt<Target, Current> for DCons<Target, Size, Tail>
-where
-    Target: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-{
-    type Output = Tail;
-
-    fn index() -> usize {
-        0
-    }
-}
-
-impl<Target, Index, NonTarget, Size, Tail> DRemoveAt<Target, Next<Index>>
-    for DCons<NonTarget, Size, Tail>
-where
-    Index: Counter,
-    Target: Dim,
-    NonTarget: Dim,
-    Size: Unsigned,
-    Tail: DimList + DRemoveAt<Target, Index>,
-{
-    type Output = DCons<NonTarget, Size, DRemoveAtOutput<Tail, Target, Index>>;
-
-    fn index() -> usize {
-        1 + <Tail as DRemoveAt<Target, Index>>::index()
-    }
-}
-
-pub type DRemoveAtOutput<List, Target, Index> = <List as DRemoveAt<Target, Index>>::Output;
-
-// mark node
-
-pub trait DMark<Target, Index>
-where
-    Target: Dim,
-    Index: Counter,
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-impl<Target, Size, Tail> DMark<Target, Current> for DCons<Target, Size, Tail>
-where
-    Target: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-{
-    type Output = DMarkedCons<Target, Size, Tail>;
-}
-
-impl<Target, Index, NonTarget, Size, Tail> DMark<Target, Next<Index>>
-    for DCons<NonTarget, Size, Tail>
-where
-    Target: Dim,
-    Index: Counter,
-    NonTarget: Dim,
-    Size: Unsigned,
-    Tail: DimList + DMark<Target, Index>,
-{
-    type Output = DCons<NonTarget, Size, DMarkOutput<Tail, Target, Index>>;
-}
-
-impl<Target, Index, NonTarget, Size, Tail> DMark<Target, Next<Index>>
-    for DMarkedCons<NonTarget, Size, Tail>
-where
-    Target: Dim,
-    Index: Counter,
-    NonTarget: Dim,
-    Size: Unsigned,
-    Tail: DimList + DMark<Target, Index>,
-{
-    type Output = DMarkedCons<NonTarget, Size, DMarkOutput<Tail, Target, Index>>;
-}
-
-pub type DMarkOutput<List, Target, Index> = <List as DMark<Target, Index>>::Output;
-
-// mark multiple nodes
-
-pub trait DMarkMany<Targets, Indexes>
-where
-    Targets: TList,
-    Indexes: TList,
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-
-    fn indexes() -> Vec<usize>;
-    fn append_indexes(prev: &mut Vec<usize>);
-}
-
-impl<List> DMarkMany<LNil, LNil> for List
-where
-    List: DimList,
-{
-    type Output = List;
-
-    fn indexes() -> Vec<usize> {
-        vec![]
-    }
-
-    fn append_indexes(_prev: &mut Vec<usize>) {}
-}
-
-impl<Target, TRemain, Index, IRemain, List> DMarkMany<LCons<Target, TRemain>, LCons<Index, IRemain>>
-    for List
-where
-    Target: Dim,
-    TRemain: TList,
-    Index: Counter + Count,
-    IRemain: TList,
-    List: DimList + DMark<Target, Index>,
-    DMarkOutput<List, Target, Index>: DMarkMany<TRemain, IRemain>,
-{
-    type Output = DMarkManyOutput<DMarkOutput<List, Target, Index>, TRemain, IRemain>;
-
-    fn indexes() -> Vec<usize> {
-        let mut indexes = vec![];
-        <List as DMarkMany<LCons<Target, TRemain>, LCons<Index, IRemain>>>::append_indexes(
-            &mut indexes,
-        );
-        indexes
-    }
-
-    fn append_indexes(prev: &mut Vec<usize>) {
-        prev.push(CountOutput::<Index>::USIZE);
-        <DMarkOutput<List, Target, Index> as DMarkMany<TRemain, IRemain>>::append_indexes(prev);
-    }
-}
-
-pub type DMarkManyOutput<List, Targets, Indexes> = <List as DMarkMany<Targets, Indexes>>::Output;
-
-// remove marked nodes
-
-pub trait DRemoveMarked
-where
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-impl DRemoveMarked for DNil {
-    type Output = DNil;
-}
-
-impl<Name, Size, Tail> DRemoveMarked for DCons<Name, Size, Tail>
-where
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList + DRemoveMarked,
-{
-    type Output = DCons<Name, Size, DRemoveMarkedOutput<Tail>>;
-}
-
-impl<Name, Size, Tail> DRemoveMarked for DMarkedCons<Name, Size, Tail>
-where
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList + DRemoveMarked,
-{
-    type Output = DRemoveMarkedOutput<Tail>;
-}
-
-pub type DRemoveMarkedOutput<List> = <List as DRemoveMarked>::Output;
-
-// remove many
-
-pub trait DRemoveMany<Targets, Indexes>
-where
-    Targets: TList,
-    Indexes: TList,
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-
-    fn indexes() -> Vec<usize>;
-}
-
-impl<List, Targets, Indexes> DRemoveMany<Targets, Indexes> for List
-where
-    Targets: TList,
-    Indexes: TList,
-    List: DimList + DMarkMany<Targets, Indexes>,
-    DMarkManyOutput<List, Targets, Indexes>: DRemoveMarked,
-{
-    type Output = DRemoveMarkedOutput<DMarkManyOutput<List, Targets, Indexes>>;
-
-    fn indexes() -> Vec<usize> {
-        <List as DMarkMany<Targets, Indexes>>::indexes()
-    }
-}
-
-pub type DRemoveManyOutput<List, Targets, Indexes> =
-    <List as DRemoveMany<Targets, Indexes>>::Output;
 
 // reduce size to one
 
@@ -966,26 +728,6 @@ where
 
 pub type DConcatAtOutput<Lhs, Rhs, Target, Index> = <Lhs as DConcatAt<Rhs, Target, Index>>::Output;
 
-// macros
-
-#[macro_export]
-macro_rules! make_dims {
-    ( $($name:ident),+ ) => {
-        $(
-            pub struct $name;
-
-            impl $crate::dim::Dim for $name {}
-        )*
-    };
-}
-
-#[macro_export]
-macro_rules! DimListType {
-    () => { $crate::dim::DNil };
-    (($name:ty, $size:ty)) => { $crate::dim::DCons<$name, $size, $crate::dim::DNil> };
-    (($name:ty, $size:ty), $(($names:ty, $sizes:ty)),+) => { $crate::dim::DCons<$name, $size, $crate::DimListType!($(($names, $sizes)),*)> };
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1003,41 +745,6 @@ mod tests {
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 
     type Assert1 = AssertSame<DExtractDimOutput<SomeDims>, TListType! {A, B, C}>;
-    type Assert2 = AssertSame<
-        DPrependOutput<SomeDims, D, U5>,
-        DimListType! {(D, U5), (A, U3), (B, U2), (C, U4)},
-    >;
-    type Assert3 = AssertSame<DPrependOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
-
-    type Assert4 = AssertSame<
-        DAppendOutput<SomeDims, D, U5>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U5)},
-    >;
-    type Assert5 = AssertSame<DAppendOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
-
-    type Assert6<Idx> = AssertSame<
-        DInsertAtOutput<SomeDims, D, U5, B, Idx>,
-        DimListType! {(A, U3), (D, U5), (B, U2), (C, U4)},
-    >;
-
-    type Assert7<Idx> = AssertSame<
-        DExpandAtOutput<SomeDims, D, B, Idx>,
-        DimListType! {(A, U3), (D, U1), (B, U2), (C, U4)},
-    >;
-
-    type Assert8 = AssertSame<
-        DExpandEndOutput<SomeDims, D>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1)},
-    >;
-
-    type Assert9<Idx> =
-        AssertSame<DRemoveAtOutput<SomeDims, B, Idx>, DimListType! {(A, U3), (C, U4)}>;
-
-    type Assert10<Idx> =
-        AssertSame<DRemoveManyOutput<SomeDims, TListType! {A, C}, Idx>, DimListType! {(B, U2)}>;
-
-    type Assert11<Idx> =
-        AssertSame<DRemoveManyOutput<SomeDims, TListType! {C, A, B}, Idx>, DimListType! {}>;
 
     type Assert12<Idx> =
         AssertSame<DReduceToOneOutput<SomeDims, A, Idx>, DimListType! {(A, U1), (B, U2), (C, U4)}>;
@@ -1071,42 +778,22 @@ mod tests {
         DimListType! {(A, U3), (B, U6), (C, U4)},
     >;
 
+    type Assert20 = AssertSame<
+        DMatMulOutput<DimListType! {(A, U2), (B, U3)}, DimListType! {(B, U3), (C, U5)}>,
+        DimListType! {(A, U2), (C, U5)},
+    >;
+
+    type Assert21<Idx> = AssertSame<DDimAtIndexName<SomeDims, U1, Idx>, B>;
+    type Assert22<Idx> = AssertSame<DDimAtIndexSize<SomeDims, U1, Idx>, U2>;
+    type Assert23<Idx> = AssertSame<DDimAtReverseIndexName<AnotherDims, U1, Idx>, D>;
+    type Assert24<Idx> = AssertSame<DDimAtReverseIndexSize<AnotherDims, U1, Idx>, U1>;
+
     type Size1<Idx> = DSizeAtOutput<SomeDims, B, Idx>;
 
     #[test]
     fn dim_test() {
         // extract dim types
         let _: Assert1 = ();
-
-        // prepend to non-empty dims
-        let _: Assert2 = ();
-
-        // prepend to empty dims
-        let _: Assert3 = ();
-
-        // append to non-empty dims
-        let _: Assert4 = ();
-
-        // append to empty dims
-        let _: Assert5 = ();
-
-        // insert single dim
-        let _: Assert6<_> = ();
-
-        // expand dim
-        let _: Assert7<_> = ();
-
-        // expand at end
-        let _: Assert8 = ();
-
-        // remove single dim
-        let _: Assert9<_> = ();
-
-        // remove multiple dims
-        let _: Assert10<_> = ();
-
-        // remove until empty
-        let _: Assert11<_> = ();
 
         // reduce size to one
         let _: Assert12<_> = ();
@@ -1131,6 +818,15 @@ mod tests {
 
         // concatenate dim
         let _: Assert19<_> = ();
+
+        // matrix multiplication
+        let _: Assert20 = ();
+
+        // name or size at position
+        let _: Assert21<_> = ();
+        let _: Assert22<_> = ();
+        let _: Assert23<_> = ();
+        let _: Assert24<_> = ();
 
         // size of specified dimension
         let _: U2 = Size1::<_>::new();
