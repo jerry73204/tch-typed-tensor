@@ -23,7 +23,7 @@ use type_freak::{
     counter::{Count, CountOutput, Counter, Current, Next},
     list::{LCons, LNil, LSetEqual, LSetEqualOutput, TList},
 };
-use typenum::{Sum, Unsigned, U0, U1};
+use typenum::{Sum, Unsigned, U1};
 
 // dimension list
 

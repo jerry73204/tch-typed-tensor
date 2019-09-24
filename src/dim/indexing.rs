@@ -4,9 +4,32 @@ use super::{
 use std::ops::Sub;
 use type_freak::{
     counter::{Counter, Current, Next},
-    list::{LCons, LIndexOf, LNil, TList},
+    list::{
+        LIndexOf, LIndexOfIndex, LIndexOfMany, LIndexOfManyIndexes, LLength, LLengthOutput,
+        LToUsizeVec, TList,
+    },
 };
 use typenum::{NonZero, Sub1, Unsigned, B1, U0};
+
+// length of dimension
+
+pub trait DLength
+where
+    Self: DimList,
+    Self::Output: Unsigned,
+{
+    type Output;
+}
+
+pub type DLengthOutput<List> = <List as DLength>::Output;
+
+impl<List> DLength for List
+where
+    List: DimList + DExtractDim,
+    DExtractDimOutput<List>: LLength,
+{
+    type Output = LLengthOutput<DExtractDimOutput<List>>;
+}
 
 // index of
 
@@ -15,9 +38,12 @@ where
     Self: DimList,
     Target: Dim,
     Index: Counter,
+    Self::Index: Unsigned,
 {
-    const INDEX: usize;
+    type Index;
 }
+
+pub type DIndexOfIndex<List, Target, Index> = <List as DIndexOf<Target, Index>>::Index;
 
 impl<Target, Index, Name, Size, Tail> DIndexOf<Target, Index> for DCons<Name, Size, Tail>
 where
@@ -28,7 +54,7 @@ where
     Tail: DimList + DExtractDim,
     DExtractDimOutput<Self>: LIndexOf<Target, Index>,
 {
-    const INDEX: usize = <DExtractDimOutput<Self> as LIndexOf<Target, Index>>::INDEX;
+    type Index = LIndexOfIndex<DExtractDimOutput<Self>, Target, Index>;
 }
 
 // index of many
@@ -38,45 +64,27 @@ where
     Self: DimList,
     Targets: TList,
     Indexes: TList,
+    Self::Indexes: TList,
 {
+    type Indexes;
     fn indexes() -> Vec<usize>;
-    fn append_indexes(prev: &mut Vec<usize>);
 }
 
-impl<List> DIndexOfMany<LNil, LNil> for List
+pub type DIndexOfManyIndexes<List, Targets, Indexes> =
+    <List as DIndexOfMany<Targets, Indexes>>::Indexes;
+
+impl<Targets, Indexes, List> DIndexOfMany<Targets, Indexes> for List
 where
-    List: DimList,
+    Targets: TList,
+    Indexes: TList,
+    List: DimList + DExtractDim,
+    DExtractDimOutput<List>: LIndexOfMany<Targets, Indexes>,
+    LIndexOfManyIndexes<DExtractDimOutput<List>, Targets, Indexes>: LToUsizeVec,
 {
+    type Indexes = LIndexOfManyIndexes<DExtractDimOutput<List>, Targets, Indexes>;
+
     fn indexes() -> Vec<usize> {
-        vec![]
-    }
-
-    fn append_indexes(_prev: &mut Vec<usize>) {}
-}
-
-impl<Index, IRemain, Target, TRemain, Name, Size, Tail>
-    DIndexOfMany<LCons<Target, TRemain>, LCons<Index, IRemain>> for DCons<Name, Size, Tail>
-where
-    Index: Counter,
-    IRemain: TList,
-    Target: Dim,
-    TRemain: TList,
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-    Self: DIndexOfMany<TRemain, IRemain> + DIndexOf<Target, Index>,
-{
-    fn indexes() -> Vec<usize> {
-        let mut indexes = vec![];
-        <Self as DIndexOfMany<LCons<Target, TRemain>, LCons<Index, IRemain>>>::append_indexes(
-            &mut indexes,
-        );
-        indexes
-    }
-
-    fn append_indexes(prev: &mut Vec<usize>) {
-        prev.push(<Self as DIndexOf<Target, Index>>::INDEX);
-        <Self as DIndexOfMany<TRemain, IRemain>>::append_indexes(prev);
+        <Self::Indexes as LToUsizeVec>::to_usize_vec()
     }
 }
 
@@ -195,39 +203,52 @@ mod tests {
 
     make_dims! {A, B, C, D, E}
 
+    type EmptyDims = DimListType! {};
     type SomeDims = DimListType! {(A, U3), (B, U2), (C, U4)};
     type AnotherDims = DimListType! {(D, U1), (E, U0)};
+    type TheOtherDims = DimListType! {(A, U3), (B, U4), (C, U4)};
 
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 
+    // index of name
+    type Assert1<Idx> = AssertSame<DIndexOfIndex<SomeDims, A, Idx>, U0>;
+    type Assert2<Idx> = AssertSame<DIndexOfIndex<SomeDims, B, Idx>, U1>;
+    type Assert3<Idx> = AssertSame<DIndexOfIndex<SomeDims, C, Idx>, U2>;
+
+    // size of specified dimension
+    type Assert4<Idx> = AssertSame<DSizeAtOutput<SomeDims, B, Idx>, U2>;
+
+    // length of dimension
+    type Assert5 = AssertSame<DLengthOutput<EmptyDims>, U0>;
+    type Assert6 = AssertSame<DLengthOutput<SomeDims>, U3>;
+    type Assert7 = AssertSame<DLengthOutput<AnotherDims>, U2>;
+    type Assert8 = AssertSame<DLengthOutput<TheOtherDims>, U3>;
+
+    // indexes of multiple names
+    type Assert9<Idx> =
+        AssertSame<DIndexOfManyIndexes<SomeDims, TListType! {C, A}, Idx>, TListType! {U2, U0}>;
+
+    // name or size at position
     type Assert21<Idx> = AssertSame<DDimAtIndexName<SomeDims, U1, Idx>, B>;
     type Assert22<Idx> = AssertSame<DDimAtIndexSize<SomeDims, U1, Idx>, U2>;
     type Assert23<Idx> = AssertSame<DDimAtReverseIndexName<AnotherDims, U1, Idx>, D>;
     type Assert24<Idx> = AssertSame<DDimAtReverseIndexSize<AnotherDims, U1, Idx>, U1>;
 
-    type Size1<Idx> = DSizeAtOutput<SomeDims, B, Idx>;
-
     #[test]
     fn dim_test() {
-        // name or size at position
+        let _: Assert1<_> = ();
+        let _: Assert2<_> = ();
+        let _: Assert3<_> = ();
+        let _: Assert4<_> = ();
+        let _: Assert5 = ();
+        let _: Assert6 = ();
+        let _: Assert7 = ();
+        let _: Assert8 = ();
+        let _: Assert9<_> = ();
         let _: Assert21<_> = ();
         let _: Assert22<_> = ();
         let _: Assert23<_> = ();
         let _: Assert24<_> = ();
-
-        // size of specified dimension
-        let _: U2 = Size1::<_>::new();
-
-        // length
-        // assert_eq!(EmptyDims::LENGTH, 0);
-        // assert_eq!(SomeDims::LENGTH, 3);
-        // assert_eq!(AnotherDims::LENGTH, 2);
-        // assert_eq!(TheOtherDims::LENGTH, 3);
-
-        // index of name
-        assert_eq!(<SomeDims as DIndexOf<A, _>>::INDEX, 0);
-        assert_eq!(<SomeDims as DIndexOf<B, _>>::INDEX, 1);
-        assert_eq!(<SomeDims as DIndexOf<C, _>>::INDEX, 2);
 
         // index of multiple names
         assert_eq!(
