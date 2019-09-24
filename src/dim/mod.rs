@@ -686,12 +686,11 @@ where
 pub type DReduceManyToOneOutput<List, Targets, Indexes> =
     <List as DReduceManyToOne<Targets, Indexes>>::Output;
 
-// reverse
+// reverse with tail
 
 pub trait DReverseWithTail<Tail>
 where
     Tail: DimList,
-    Self: DimList,
     Self: DimList,
     Self::Output: DimList,
 {
@@ -717,7 +716,25 @@ where
 
 pub type DReverseWithTailOutput<List, ReversedTail> =
     <List as DReverseWithTail<ReversedTail>>::Output;
-pub type DReverseOutput<List> = DReverseWithTailOutput<List, DNil>;
+
+// reverse
+
+pub trait DReverse
+where
+    Self: DimList,
+    Self::Output: DimList,
+{
+    type Output;
+}
+
+pub type DReverseOutput<List> = <List as DReverse>::Output;
+
+impl<List> DReverse for List
+where
+    List: DimList + DReverseWithTail<DNil>,
+{
+    type Output = DReverseWithTailOutput<List, DNil>;
+}
 
 // set equal
 
