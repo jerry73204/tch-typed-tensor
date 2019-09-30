@@ -1,152 +1,118 @@
-use super::{DCons, DNil, Dim, DimList};
-use type_freak::counter::{Counter, Current, Next};
-use typenum::{Unsigned, U1};
+use super::{DFromKVList, DFromKVListFunctor, DimList, DimName, DimSize};
+use std::marker::PhantomData;
+use type_freak::{
+    counter::Counter,
+    functional::{ApplyFunctor, Functor},
+    kvlist::{
+        KVAppend, KVAppendFunctor, KVInsertAt, KVInsertAtFunctor, KVPrepend, KVPrependFunctor,
+    },
+};
 
 // insert at
 
-pub trait DInsertAt<Name, Size, Target, Index>
+/// A [Functor] that inserts a `NewName`-`NewSize` pair at after `Target` into input [DimList].
+pub struct DInsertAtFunctor<NewName, NewSize, Target, Index>
 where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Target: Dim,
+    NewName: DimName,
+    NewSize: DimSize,
+    Target: DimName,
     Index: Counter,
-    Self::Output: DimList,
 {
-    type Output;
+    _phantom: PhantomData<(NewName, NewSize, Target, Index)>,
 }
 
-impl<NewName, NewSize, Target, Size, Tail> DInsertAt<NewName, NewSize, Target, Current>
-    for DCons<Target, Size, Tail>
-where
-    NewName: Dim,
-    NewSize: Unsigned,
-    Target: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-{
-    type Output = DCons<NewName, NewSize, DCons<Target, Size, Tail>>;
-}
+pub type DInsertAt<List, NewName, NewSize, Target, Index> =
+    ApplyFunctor<DInsertAtFunctor<NewName, NewSize, Target, Index>, List>;
 
-impl<NewName, NewSize, Target, Index, NonTarget, Size, Tail>
-    DInsertAt<NewName, NewSize, Target, Next<Index>> for DCons<NonTarget, Size, Tail>
+impl<List, NewName, NewSize, Target, Index> Functor<List>
+    for DInsertAtFunctor<NewName, NewSize, Target, Index>
 where
+    NewName: DimName,
+    NewSize: DimSize,
+    List: DimList,
+    Target: DimName,
     Index: Counter,
-    NewName: Dim,
-    NewSize: Unsigned,
-    Target: Dim,
-    NonTarget: Dim,
-    Size: Unsigned,
-    Tail: DimList + DInsertAt<NewName, NewSize, Target, Index>,
+    KVInsertAtFunctor<NewName, NewSize, Target, Index>: Functor<List::List>,
+    DFromKVListFunctor: Functor<KVInsertAt<List::List, NewName, NewSize, Target, Index>>,
 {
-    type Output = DCons<NonTarget, Size, DInsertAtOutput<Tail, NewName, NewSize, Target, Index>>;
+    type Output = DFromKVList<KVInsertAt<List::List, NewName, NewSize, Target, Index>>;
 }
-
-pub type DInsertAtOutput<List, Name, Size, Target, Index> =
-    <List as DInsertAt<Name, Size, Target, Index>>::Output;
-
-// expand at and expand at end
-
-pub type DExpandAtOutput<List, Name, Target, Index> =
-    DInsertAtOutput<List, Name, U1, Target, Index>;
-
-pub type DExpandEndOutput<List, Name> = DAppendOutput<List, Name, U1>;
 
 // append
 
-pub trait DAppend<Name, Size>
+/// A [Functor] that appends a `NewName`-`NewSize` pair into input [DimList].
+pub struct DAppendFunctor<NewName, NewSize>
 where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Self::Output: DimList,
+    NewName: DimName,
+    NewSize: DimSize,
 {
-    type Output;
+    _phantom: PhantomData<(NewName, NewSize)>,
 }
 
-impl<Name, Size> DAppend<Name, Size> for DNil
-where
-    Name: Dim,
-    Size: Unsigned,
-{
-    type Output = DCons<Name, Size, DNil>;
-}
+pub type DAppend<List, NewName, NewSize> = ApplyFunctor<DAppendFunctor<NewName, NewSize>, List>;
 
-impl<NewName, NewSize, Name, Size, Tail> DAppend<NewName, NewSize> for DCons<Name, Size, Tail>
+impl<List, NewName, NewSize> Functor<List> for DAppendFunctor<NewName, NewSize>
 where
-    NewName: Dim,
-    NewSize: Unsigned,
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList + DAppend<NewName, NewSize>,
+    NewName: DimName,
+    NewSize: DimSize,
+    List: DimList,
+    KVAppendFunctor<NewName, NewSize>: Functor<List::List>,
+    DFromKVListFunctor: Functor<KVAppend<List::List, NewName, NewSize>>,
 {
-    type Output = DCons<Name, Size, <Tail as DAppend<NewName, NewSize>>::Output>;
+    type Output = DFromKVList<KVAppend<List::List, NewName, NewSize>>;
 }
-
-pub type DAppendOutput<List, Name, Size> = <List as DAppend<Name, Size>>::Output;
 
 // prepend
 
-pub trait DPrepend<Name, Size>
+/// A [Functor] that prepends a `NewName`-`NewSize` pair into input [DimList].
+pub struct DPrependFunctor<NewName, NewSize>
 where
-    Self: DimList,
-    Name: Dim,
-    Size: Unsigned,
-    Self::Output: DimList,
+    NewName: DimName,
+    NewSize: DimSize,
 {
-    type Output;
+    _phantom: PhantomData<(NewName, NewSize)>,
 }
 
-impl<Name, Size, List> DPrepend<Name, Size> for List
+pub type DPrepend<List, NewName, NewSize> = ApplyFunctor<DPrependFunctor<NewName, NewSize>, List>;
+
+impl<List, NewName, NewSize> Functor<List> for DPrependFunctor<NewName, NewSize>
 where
-    Name: Dim,
-    Size: Unsigned,
+    NewName: DimName,
+    NewSize: DimSize,
     List: DimList,
+    KVPrependFunctor<NewName, NewSize>: Functor<List::List>,
+    DFromKVListFunctor: Functor<KVPrepend<List::List, NewName, NewSize>>,
 {
-    type Output = DCons<Name, Size, List>;
+    type Output = DFromKVList<KVPrepend<List::List, NewName, NewSize>>;
 }
 
-pub type DPrependOutput<List, Name, Size> = <List as DPrepend<Name, Size>>::Output;
+// tests
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{make_dims, DimListType};
+    use crate::{define_dim_names, dim::Known, Dims};
     use type_freak::control::IfSameOutput;
     use typenum::consts::*;
 
-    make_dims! {A, B, C, D, E}
+    define_dim_names! {A, B, C, D, E}
 
-    type EmptyDims = DimListType! {};
-    type SomeDims = DimListType! {(A, U3), (B, U2), (C, U4)};
+    type EmptyDims = Dims![];
+    type SomeDims = Dims![(A, U3), (B, U2), (C, U4)];
 
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 
-    type Assert2 = AssertSame<
-        DPrependOutput<SomeDims, D, U5>,
-        DimListType! {(D, U5), (A, U3), (B, U2), (C, U4)},
-    >;
-    type Assert3 = AssertSame<DPrependOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
+    type Assert2 =
+        AssertSame<DPrepend<SomeDims, D, Known<U5>>, Dims![(D, U5), (A, U3), (B, U2), (C, U4)]>;
+    type Assert3 = AssertSame<DPrepend<EmptyDims, D, Known<U5>>, Dims![(D, U5)]>;
 
-    type Assert4 = AssertSame<
-        DAppendOutput<SomeDims, D, U5>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U5)},
-    >;
-    type Assert5 = AssertSame<DAppendOutput<EmptyDims, D, U5>, DimListType! {(D, U5)}>;
+    type Assert4 =
+        AssertSame<DAppend<SomeDims, D, Known<U5>>, Dims![(A, U3), (B, U2), (C, U4), (D, U5)]>;
+    type Assert5 = AssertSame<DAppend<EmptyDims, D, Known<U5>>, Dims![(D, U5)]>;
 
     type Assert6<Idx> = AssertSame<
-        DInsertAtOutput<SomeDims, D, U5, B, Idx>,
-        DimListType! {(A, U3), (D, U5), (B, U2), (C, U4)},
-    >;
-
-    type Assert7<Idx> = AssertSame<
-        DExpandAtOutput<SomeDims, D, B, Idx>,
-        DimListType! {(A, U3), (D, U1), (B, U2), (C, U4)},
-    >;
-
-    type Assert8 = AssertSame<
-        DExpandEndOutput<SomeDims, D>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1)},
+        DInsertAt<SomeDims, D, Known<U5>, B, Idx>,
+        Dims![(A, U3), (D, U5), (B, U2), (C, U4)],
     >;
 
     #[test]
@@ -165,11 +131,5 @@ mod tests {
 
         // insert single dim
         let _: Assert6<_> = ();
-
-        // expand dim
-        let _: Assert7<_> = ();
-
-        // expand at end
-        let _: Assert8 = ();
     }
 }

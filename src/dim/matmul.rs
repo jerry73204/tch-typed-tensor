@@ -1,129 +1,388 @@
 use super::{
-    BcastAbscent, BroadcastMatcher, DBroadcastBothReversely, DBroadcastBothReverselyOutput,
-    DReverse, DReverseOutput, Dim, DimList, MatrixDim,
+    marker::MatrixDim, BcastAbscent, BroadcastIndicator, DBroadcastBothReversely,
+    DBroadcastBothReverselyFunctor, DReverse, DReverseFunctor, DimList, DimName, DimSize, Known,
+    Unknown,
 };
-
-use crate::{DimListType, DimListTypeWithTail};
+use crate::{DimsVerbose, DimsWithTailVerbose};
+use std::marker::PhantomData;
+use type_freak::functional::{ApplyFunctor, Functor};
 use typenum::Unsigned;
 
 // two-dimensional matrix multiplication
 
-pub trait DMatMul<Rhs>
+pub struct DMatMulFunctor<Rhs>
 where
-    Self: MatrixDim,
     Rhs: MatrixDim,
-    Self::Output: MatrixDim,
 {
-    type Output;
+    _phantom: PhantomData<Rhs>,
 }
 
-pub type DMatMulOutput<Lhs, Rhs> = <Lhs as DMatMul<Rhs>>::Output;
+pub type DMatMul<Lhs, Rhs> = ApplyFunctor<DMatMulFunctor<Rhs>, Lhs>;
 
 // (m x n) . (n x p) -> (m x p)
-impl<MDim, MSize, NDim, NSize, PDim, PSize> DMatMul<DimListType! {(NDim, NSize), (PDim, PSize)}> for DimListType! {(MDim, MSize), (NDim, NSize)}
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize>
+    Functor<DimsVerbose![(MDim, MSize), (NDimL, Known<NSize>)]>
+    for DMatMulFunctor<DimsVerbose![(NDimR, Known<NSize>), (PDim, PSize)]>
 where
-    MDim: Dim,
-    MSize: Unsigned,
-    NDim: Dim,
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
     NSize: Unsigned,
-    PDim: Dim,
-    PSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
 {
-    type Output = DimListType! {(MDim, MSize), (PDim, PSize)};
+    type Output = DimsVerbose![(MDim, MSize), (PDim, PSize)];
+}
+
+// (m x ?) . (n x p) -> (m x p)
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize>
+    Functor<DimsVerbose![(MDim, MSize), (NDimL, Unknown)]>
+    for DMatMulFunctor<DimsVerbose![(NDimR, Known<NSize>), (PDim, PSize)]>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+{
+    type Output = DimsVerbose![(MDim, MSize), (PDim, PSize)];
+}
+
+// (m x n) . (? x p) -> (m x p)
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize>
+    Functor<DimsVerbose![(MDim, MSize), (NDimL, Known<NSize>)]>
+    for DMatMulFunctor<DimsVerbose![(NDimR, Unknown), (PDim, PSize)]>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+{
+    type Output = DimsVerbose![(MDim, MSize), (PDim, PSize)];
+}
+
+// (m x ?) . (? x p) -> (m x p)
+impl<MDim, MSize, NDimL, NDimR, PDim, PSize> Functor<DimsVerbose![(MDim, MSize), (NDimL, Unknown)]>
+    for DMatMulFunctor<DimsVerbose![(NDimR, Unknown), (PDim, PSize)]>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    PDim: DimName,
+    PSize: DimSize,
+{
+    type Output = DimsVerbose![(MDim, MSize), (PDim, PSize)];
 }
 
 // broadcasted matmul
 
-pub trait DMatMulBroadcasted<Rhs, Matcher>
+pub struct DMatMulBroadcastedFunctor<Rhs, Matcher>
 where
     Rhs: DimList,
-    Matcher: BroadcastMatcher,
-    Self: DimList,
-    Self::Output: DimList,
+    Matcher: BroadcastIndicator,
 {
-    type Output;
+    _phantom: PhantomData<(Rhs, Matcher)>,
 }
 
-pub type DMatMulBroadcastedOutput<Lhs, Rhs, Matcher> =
-    <Lhs as DMatMulBroadcasted<Rhs, Matcher>>::Output;
+pub type DMatMulBroadcasted<Lhs, Rhs, Matcher> =
+    ApplyFunctor<DMatMulBroadcastedFunctor<Rhs, Matcher>, Lhs>;
 
-impl<Lhs, Rhs, Matcher> DMatMulBroadcasted<Rhs, Matcher> for Lhs
+impl<Lhs, Rhs, Matcher> Functor<Lhs> for DMatMulBroadcastedFunctor<Rhs, Matcher>
 where
-    Lhs: DimList + DReverse,
-    Rhs: DimList + DReverse,
-    Matcher: BroadcastMatcher,
-    DReverseOutput<Lhs>: DMatMulAuxiliary<DReverseOutput<Rhs>, Matcher>,
-    DMatMulAuxiliaryOutput<DReverseOutput<Lhs>, DReverseOutput<Rhs>, Matcher>: DReverse,
+    Lhs: DimList,
+    Rhs: DimList,
+    Matcher: BroadcastIndicator,
+    DReverseFunctor: Functor<Lhs>
+        + Functor<Rhs>
+        + Functor<DMatMulReversely<DReverse<Lhs>, DReverse<Rhs>, Matcher>>,
+    DMatMulReverselyFunctor<DReverse<Rhs>, Matcher>: Functor<DReverse<Lhs>>,
+    DReverse<Rhs>: DimList,
 {
-    type Output =
-        DReverseOutput<DMatMulAuxiliaryOutput<DReverseOutput<Lhs>, DReverseOutput<Rhs>, Matcher>>;
+    type Output = DReverse<DMatMulReversely<DReverse<Lhs>, DReverse<Rhs>, Matcher>>;
 }
 
 // auxiliary trait for DMatMulBroadcastable broadcastable matrix multiplication
 
-pub trait DMatMulAuxiliary<Rhs, Matcher>
+pub struct DMatMulReverselyFunctor<Rhs, Matcher>
 where
     Rhs: DimList,
-    Matcher: BroadcastMatcher,
-    Self: DimList,
-    Self::Output: DimList,
+    Matcher: BroadcastIndicator,
 {
-    type Output;
+    _phantom: PhantomData<(Rhs, Matcher)>,
 }
 
-pub type DMatMulAuxiliaryOutput<Lhs, Rhs, Matcher> =
-    <Lhs as DMatMulAuxiliary<Rhs, Matcher>>::Output;
+pub type DMatMulReversely<Lhs, Rhs, Matcher> =
+    ApplyFunctor<DMatMulReverselyFunctor<Rhs, Matcher>, Lhs>;
 
-// vector x vector
-impl<LDim, RDim, Size> DMatMulAuxiliary<DimListType! {(RDim, Size)}, BcastAbscent> for DimListType! {(LDim, Size)}
+// [n] x [n] -> []
+impl<LDim, RDim, Size> Functor<DimsVerbose![(LDim, Known<Size>)]>
+    for DMatMulReverselyFunctor<DimsVerbose![(RDim, Known<Size>)], BcastAbscent>
 where
-    LDim: Dim,
-    RDim: Dim,
+    LDim: DimName,
+    RDim: DimName,
     Size: Unsigned,
 {
-    type Output = DimListType! {};
+    type Output = DimsVerbose![];
 }
 
-// broadcasted matrix x matrix
-impl<MDim, MSize, NDim, NSize, PDim, PSize, LTail, RTail, Matcher>
-    DMatMulAuxiliary<DimListTypeWithTail! {(PDim, PSize), (NDim, NSize), RTail}, Matcher> for DimListTypeWithTail! {(NDim, NSize), (MDim, MSize), LTail}
+// [?] x [n] -> []
+impl<LDim, RDim, Size> Functor<DimsVerbose![(LDim, Known<Size>)]>
+    for DMatMulReverselyFunctor<DimsVerbose![(RDim, Unknown)], BcastAbscent>
 where
-    MDim: Dim,
-    MSize: Unsigned,
-    NDim: Dim,
+    LDim: DimName,
+    RDim: DimName,
+    Size: Unsigned,
+{
+    type Output = DimsVerbose![];
+}
+
+// [n] x [?] -> []
+impl<LDim, RDim, Size> Functor<DimsVerbose![(LDim, Unknown)]>
+    for DMatMulReverselyFunctor<DimsVerbose![(RDim, Known<Size>)], BcastAbscent>
+where
+    LDim: DimName,
+    RDim: DimName,
+    Size: Unsigned,
+{
+    type Output = DimsVerbose![];
+}
+
+// [?] x [?] -> []
+impl<LDim, RDim> Functor<DimsVerbose![(LDim, Unknown)]>
+    for DMatMulReverselyFunctor<DimsVerbose![(RDim, Unknown)], BcastAbscent>
+where
+    LDim: DimName,
+    RDim: DimName,
+{
+    type Output = DimsVerbose![];
+}
+
+// [..., m, n] x [n, p] -> [..., m, p]
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize, LTail, RTail, Matcher>
+    Functor<DimsWithTailVerbose![(NDimL, Known<NSize>), (MDim, MSize); LTail]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Known<NSize>); RTail],
+        Matcher,
+    >
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
     NSize: Unsigned,
-    PDim: Dim,
-    PSize: Unsigned,
-    LTail: DimList + DBroadcastBothReversely<RTail, Matcher>,
+    PDim: DimName,
+    PSize: DimSize,
+    LTail: DimList,
     RTail: DimList,
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
+    DBroadcastBothReverselyFunctor<RTail, Matcher>: Functor<LTail>,
+    DBroadcastBothReversely<LTail, RTail, Matcher>: DimList,
 {
-    type Output = DimListTypeWithTail! {(PDim, PSize), (MDim, MSize), DBroadcastBothReverselyOutput<LTail, RTail, Matcher>};
+    type Output = DimsWithTailVerbose![(PDim, PSize), (MDim, MSize); DBroadcastBothReversely<LTail, RTail, Matcher>];
 }
 
-// broadcasted vector x matrix
-impl<NDim, NSize, PDim, PSize, Tail>
-    DMatMulAuxiliary<DimListTypeWithTail! {(PDim, PSize), (NDim, NSize), Tail}, BcastAbscent> for DimListType! {(NDim, NSize)}
+// [..., m, ?] x [n, p] -> [..., m, p]
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize, LTail, RTail, Matcher>
+    Functor<DimsWithTailVerbose![(NDimL, Unknown), (MDim, MSize); LTail]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Known<NSize>); RTail],
+        Matcher,
+    >
 where
-    NDim: Dim,
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
     NSize: Unsigned,
-    PDim: Dim,
-    PSize: Unsigned,
-    Tail: DimList,
+    PDim: DimName,
+    PSize: DimSize,
+    LTail: DimList,
+    RTail: DimList,
+    Matcher: BroadcastIndicator,
+    DBroadcastBothReverselyFunctor<RTail, Matcher>: Functor<LTail>,
+    DBroadcastBothReversely<LTail, RTail, Matcher>: DimList,
 {
-    type Output = DimListTypeWithTail! {(PDim, PSize), Tail};
+    type Output = DimsWithTailVerbose![(PDim, PSize), (MDim, MSize); DBroadcastBothReversely<LTail, RTail, Matcher>];
 }
 
-// broadcasted matrix x vector
-impl<MDim, MSize, NDim, NSize, Tail> DMatMulAuxiliary<DimListType! {(NDim, NSize)}, BcastAbscent> for DimListTypeWithTail! {(NDim, NSize), (MDim, MSize), Tail}
+// [..., m, n] x [?, p] -> [..., m, p]
+impl<MDim, MSize, NDimL, NDimR, NSize, PDim, PSize, LTail, RTail, Matcher>
+    Functor<DimsWithTailVerbose![(NDimL, Known<NSize>), (MDim, MSize); LTail]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Unknown); RTail],
+        Matcher,
+    >
 where
-    MDim: Dim,
-    MSize: Unsigned,
-    NDim: Dim,
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+    LTail: DimList,
+    RTail: DimList,
+    Matcher: BroadcastIndicator,
+    DBroadcastBothReverselyFunctor<RTail, Matcher>: Functor<LTail>,
+    DBroadcastBothReversely<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize), (MDim, MSize); DBroadcastBothReversely<LTail, RTail, Matcher>];
+}
+
+// [..., m, ?] x [?, p] -> [..., m, p]
+impl<MDim, MSize, NDimL, NDimR, PDim, PSize, LTail, RTail, Matcher>
+    Functor<DimsWithTailVerbose![(NDimL, Unknown), (MDim, MSize); LTail]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Unknown); RTail],
+        Matcher,
+    >
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    PDim: DimName,
+    PSize: DimSize,
+    LTail: DimList,
+    RTail: DimList,
+    Matcher: BroadcastIndicator,
+    DBroadcastBothReverselyFunctor<RTail, Matcher>: Functor<LTail>,
+    DBroadcastBothReversely<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize), (MDim, MSize); DBroadcastBothReversely<LTail, RTail, Matcher>];
+}
+
+// [n] x [..., n, p] -> [..., p]
+impl<NDimL, NDimR, NSize, PDim, PSize, Tail> Functor<DimsVerbose![(NDimL, Known<NSize>)]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Known<NSize>); Tail],
+        BcastAbscent,
+    >
+where
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize); Tail];
+}
+
+// [?] x [..., n, p] -> [..., p]
+impl<NDimL, NDimR, NSize, PDim, PSize, Tail> Functor<DimsVerbose![(NDimL, Unknown)]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Known<NSize>); Tail],
+        BcastAbscent,
+    >
+where
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize); Tail];
+}
+
+// [n] x [..., ?, p] -> [..., p]
+impl<NDimL, NDimR, NSize, PDim, PSize, Tail> Functor<DimsVerbose![(NDimL, Known<NSize>)]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Unknown); Tail],
+        BcastAbscent,
+    >
+where
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    PDim: DimName,
+    PSize: DimSize,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize); Tail];
+}
+
+// [?] x [..., ?, p] -> [..., p]
+impl<NDimL, NDimR, PDim, PSize, Tail> Functor<DimsVerbose![(NDimL, Unknown)]>
+    for DMatMulReverselyFunctor<
+        DimsWithTailVerbose![(PDim, PSize), (NDimR, Unknown); Tail],
+        BcastAbscent,
+    >
+where
+    NDimL: DimName,
+    NDimR: DimName,
+    PDim: DimName,
+    PSize: DimSize,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(PDim, PSize); Tail];
+}
+
+// [..., m, n] x [n] -> [..., m]
+impl<MDim, MSize, NDimL, NDimR, NSize, Tail>
+    Functor<DimsWithTailVerbose![(NDimL, Known<NSize>), (MDim, MSize); Tail]>
+    for DMatMulReverselyFunctor<DimsVerbose![(NDimR, Known<NSize>)], BcastAbscent>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
     NSize: Unsigned,
     Tail: DimList,
 {
-    type Output = DimListTypeWithTail! {(MDim, MSize), Tail};
+    type Output = DimsWithTailVerbose![(MDim, MSize); Tail];
+}
+
+// [..., m, ?] x [n] -> [..., m]
+impl<MDim, MSize, NDimL, NDimR, NSize, Tail>
+    Functor<DimsWithTailVerbose![(NDimL, Unknown), (MDim, MSize); Tail]>
+    for DMatMulReverselyFunctor<DimsVerbose![(NDimR, Known<NSize>)], BcastAbscent>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(MDim, MSize); Tail];
+}
+
+// [..., m, n] x [?] -> [..., m]
+impl<MDim, MSize, NDimL, NDimR, NSize, Tail>
+    Functor<DimsWithTailVerbose![(NDimL, Known<NSize>), (MDim, MSize); Tail]>
+    for DMatMulReverselyFunctor<DimsVerbose![(NDimR, Unknown)], BcastAbscent>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    NSize: Unsigned,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(MDim, MSize); Tail];
+}
+
+// [..., m, ?] x [?] -> [..., m]
+impl<MDim, MSize, NDimL, NDimR, Tail>
+    Functor<DimsWithTailVerbose![(NDimL, Unknown), (MDim, MSize); Tail]>
+    for DMatMulReverselyFunctor<DimsVerbose![(NDimR, Unknown)], BcastAbscent>
+where
+    MDim: DimName,
+    MSize: DimSize,
+    NDimL: DimName,
+    NDimR: DimName,
+    Tail: DimList,
+{
+    type Output = DimsWithTailVerbose![(MDim, MSize); Tail];
 }
 
 // tests
@@ -131,64 +390,174 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{make_dims, DimListType};
-    use type_freak::control::IfSameOutput;
+    use crate::{define_dim_names, Dims};
+    use type_freak::control::{IfOutput, IfSameOutput};
     use typenum::consts::*;
 
-    make_dims! {M, N, P, X, Y}
+    define_dim_names! {M, N, P, X, Y, Z, W, A}
 
-    type VecDims1 = DimListType! {(N, U2)};
-    type VecDims2 = DimListType! {(M, U2)};
-    type MatDims1 = DimListType! {(M, U3), (N, U2)};
-    type MatDims2 = DimListType! {(N, U2), (P, U5)};
-    type BatchMatDims1 = DimListType! {(X, U7), (Y, U1), (M, U3), (N, U2)};
-    type BatchMatDims2 = DimListType! {(Y, U11), (N, U2), (P, U5)};
+    type VecDims1 = Dims![(Z, U2)];
+    type VecDims2 = Dims![(W, U2)];
+    type VecDims3 = Dims![(Z,)];
+    type VecDims4 = Dims![(W,)];
+
+    type MatDims1 = Dims![(M, U3), (N, U2)];
+    type MatDims2 = Dims![(A, U2), (P, U5)];
+    type MatDims3 = Dims![(M, U3), (N,)];
+    type MatDims4 = Dims![(A,), (P, U5)];
+
+    type BatchMatDims1 = Dims![(X, U7), (Y, U1), (M, U3), (N, U2)];
+    type BatchMatDims2 = Dims![(Y, U11), (A, U2), (P, U5)];
+    type BatchMatDims3 = Dims![(X, U7), (Y, U1), (M, U3), (N,)];
+    type BatchMatDims4 = Dims![(Y, U11), (A,), (P, U5)];
 
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 
     // non-broadcasted matmul
-    type Assert1 = AssertSame<DMatMulOutput<MatDims1, MatDims2>, DimListType! {(M, U3), (P, U5)}>;
+    type Assert1 = IfOutput<
+        (),
+        (
+            AssertSame<DMatMul<MatDims1, MatDims2>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMul<MatDims1, MatDims4>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMul<MatDims3, MatDims2>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMul<MatDims3, MatDims4>, Dims![(M, U3), (P, U5)]>,
+        ),
+    >;
 
     // vector x vector
-    type Assert2<Matcher> =
-        AssertSame<DMatMulBroadcastedOutput<VecDims1, VecDims2, Matcher>, DimListType! {}>;
+    type Assert2<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<DMatMulBroadcasted<VecDims1, VecDims2, Matcher>, Dims![]>,
+            AssertSame<DMatMulBroadcasted<VecDims1, VecDims4, Matcher>, Dims![]>,
+            AssertSame<DMatMulBroadcasted<VecDims3, VecDims2, Matcher>, Dims![]>,
+            AssertSame<DMatMulBroadcasted<VecDims3, VecDims4, Matcher>, Dims![]>,
+        ),
+    >;
 
     // matrix x vector
-    type Assert3<Matcher> =
-        AssertSame<DMatMulBroadcastedOutput<MatDims1, VecDims1, Matcher>, DimListType! {(M, U3)}>;
+    type Assert3<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<DMatMulBroadcasted<MatDims1, VecDims2, Matcher>, Dims![(M, U3)]>,
+            AssertSame<DMatMulBroadcasted<MatDims1, VecDims4, Matcher>, Dims![(M, U3)]>,
+            AssertSame<DMatMulBroadcasted<MatDims3, VecDims2, Matcher>, Dims![(M, U3)]>,
+            AssertSame<DMatMulBroadcasted<MatDims3, VecDims4, Matcher>, Dims![(M, U3)]>,
+        ),
+    >;
 
     // vector x matrix
-    type Assert4<Matcher> =
-        AssertSame<DMatMulBroadcastedOutput<VecDims1, MatDims2, Matcher>, DimListType! {(P, U5)}>;
+    type Assert4<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<DMatMulBroadcasted<VecDims1, MatDims2, Matcher>, Dims![(P, U5)]>,
+            AssertSame<DMatMulBroadcasted<VecDims1, MatDims4, Matcher>, Dims![(P, U5)]>,
+            AssertSame<DMatMulBroadcasted<VecDims3, MatDims2, Matcher>, Dims![(P, U5)]>,
+            AssertSame<DMatMulBroadcasted<VecDims3, MatDims4, Matcher>, Dims![(P, U5)]>,
+        ),
+    >;
 
     // matrix x matrix
-    type Assert5<Matcher> = AssertSame<
-        DMatMulBroadcastedOutput<MatDims1, MatDims2, Matcher>,
-        DimListType! {(M, U3), (P, U5)},
+    type Assert5<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<DMatMulBroadcasted<MatDims1, MatDims2, Matcher>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMulBroadcasted<MatDims1, MatDims4, Matcher>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMulBroadcasted<MatDims3, MatDims2, Matcher>, Dims![(M, U3), (P, U5)]>,
+            AssertSame<DMatMulBroadcasted<MatDims1, MatDims4, Matcher>, Dims![(M, U3), (P, U5)]>,
+        ),
     >;
 
     // batched matrix x vector
-    type Assert6<Matcher> = AssertSame<
-        DMatMulBroadcastedOutput<BatchMatDims1, VecDims1, Matcher>,
-        DimListType! {(X, U7), (Y, U1), (M, U3)},
+    type Assert6<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, VecDims1, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, VecDims3, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, VecDims1, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, VecDims3, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3)],
+            >,
+        ),
     >;
 
     // vector x batched matrix
-    type Assert7<Matcher> = AssertSame<
-        DMatMulBroadcastedOutput<VecDims1, BatchMatDims2, Matcher>,
-        DimListType! {(Y, U11), (P, U5)},
+    type Assert7<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<
+                DMatMulBroadcasted<VecDims1, BatchMatDims2, Matcher>,
+                Dims![(Y, U11), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<VecDims1, BatchMatDims4, Matcher>,
+                Dims![(Y, U11), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<VecDims3, BatchMatDims2, Matcher>,
+                Dims![(Y, U11), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<VecDims3, BatchMatDims4, Matcher>,
+                Dims![(Y, U11), (P, U5)],
+            >,
+        ),
     >;
 
     // batched matrix x matrix
-    type Assert8<Matcher> = AssertSame<
-        DMatMulBroadcastedOutput<BatchMatDims1, MatDims2, Matcher>,
-        DimListType! {(X, U7), (Y, U1), (M, U3), (P, U5)},
+    type Assert8<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, MatDims2, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, MatDims4, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, MatDims2, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, MatDims4, Matcher>,
+                Dims![(X, U7), (Y, U1), (M, U3), (P, U5)],
+            >,
+        ),
     >;
 
     // batched matrix x batched matrix
-    type Assert9<Matcher> = AssertSame<
-        DMatMulBroadcastedOutput<BatchMatDims1, BatchMatDims2, Matcher>,
-        DimListType! {(X, U7), (Y, U11), (M, U3), (P, U5)},
+    type Assert9<Matcher> = IfOutput<
+        (),
+        (
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, BatchMatDims2, Matcher>,
+                Dims![(X, U7), (Y, U11), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims1, BatchMatDims4, Matcher>,
+                Dims![(X, U7), (Y, U11), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, BatchMatDims2, Matcher>,
+                Dims![(X, U7), (Y, U11), (M, U3), (P, U5)],
+            >,
+            AssertSame<
+                DMatMulBroadcasted<BatchMatDims3, BatchMatDims4, Matcher>,
+                Dims![(X, U7), (Y, U11), (M, U3), (P, U5)],
+            >,
+        ),
     >;
 
     #[test]

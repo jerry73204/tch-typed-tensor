@@ -1,371 +1,405 @@
-use super::{DCons, DNil, DReverse, DReverseOutput, Dim, DimList};
+use super::{
+    DCons, DNil, DRank, DRankFunctor, DReverse, DReverseFunctor, DimList, DimName, DimSize, Known,
+    Unknown,
+};
+
 use std::marker::PhantomData;
-use typenum::{Unsigned, U1};
+use type_freak::{
+    control::IfLessOrEqual,
+    functional::{ApplyFunctor, Functor},
+};
+use typenum::{Bit, UInt, Unsigned, U1};
 
 /// The trait distinguishes the cases of identical dimensions, one of both is one,
 /// or missing one of them.
 ///
 /// Type positions of this trait can be inferred automatically. It is not intended
 /// to be manually specified by user.
-pub trait BroadcastMatcher {}
+pub trait BroadcastIndicator {}
 
-/// Indicates right-hand-side dimension is one, thus broadcasts to left.
+/// Replaces size of the right-hand-side with that of left-hand-side.
 pub struct BcastLeft<Matcher>
 where
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
 {
     _phantom: PhantomData<Matcher>,
 }
 
-impl<Matcher> BroadcastMatcher for BcastLeft<Matcher> where Matcher: BroadcastMatcher {}
+impl<Matcher> BroadcastIndicator for BcastLeft<Matcher> where Matcher: BroadcastIndicator {}
 
-/// Indicates left-hand-side dimension is one, thus broadcasts to right.
+/// Replaces size of the left-hand-side with that of right-hand-side.
 pub struct BcastRight<Matcher>
 where
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
 {
     _phantom: PhantomData<Matcher>,
 }
 
-impl<Matcher> BroadcastMatcher for BcastRight<Matcher> where Matcher: BroadcastMatcher {}
+impl<Matcher> BroadcastIndicator for BcastRight<Matcher> where Matcher: BroadcastIndicator {}
 
 /// Indicates both dimensions are of the same size.
 pub struct BcastIdentical<Matcher>
 where
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
 {
     _phantom: PhantomData<Matcher>,
 }
 
-impl<Matcher> BroadcastMatcher for BcastIdentical<Matcher> where Matcher: BroadcastMatcher {}
+impl<Matcher> BroadcastIndicator for BcastIdentical<Matcher> where Matcher: BroadcastIndicator {}
 
 /// Indicates at least one of the dimensions is missing.
 pub struct BcastAbscent;
 
-impl BroadcastMatcher for BcastAbscent {}
+impl BroadcastIndicator for BcastAbscent {}
 
-// broadcast to size of target from head
+// broadcast to size of target from tail to head
 
-/// An auxiliary trait for [DBroadcastTo] and [DBroadcastToReversely] type operators.
-pub trait DBroadcastingTo<Target, Matcher>
-where
-    Target: DimList,
-    Matcher: BroadcastMatcher,
-    Self: DimList,
-    Self::Output: DimList,
-{
-    type Output;
-}
-
-pub type DBroadcastingToOutput<List, Target, Matcher> =
-    <List as DBroadcastingTo<Target, Matcher>>::Output;
-
-impl DBroadcastingTo<DNil, BcastAbscent> for DNil {
-    type Output = DNil;
-}
-
-impl<Name, Size, Tail> DBroadcastingTo<DCons<Name, Size, Tail>, BcastAbscent> for DNil
-where
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList,
-    DNil: DBroadcastingTo<Tail, BcastAbscent>,
-{
-    type Output = DCons<Name, Size, DBroadcastingToOutput<DNil, Tail, BcastAbscent>>;
-}
-
-impl<Matcher, Name, Size, LTail, RTail>
-    DBroadcastingTo<DCons<Name, Size, RTail>, BcastIdentical<Matcher>> for DCons<Name, Size, LTail>
-where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingTo<RTail, Matcher>,
-    RTail: DimList,
-    DBroadcastingToOutput<LTail, RTail, Matcher>: DimList,
-{
-    type Output = DCons<Name, Size, DBroadcastingToOutput<LTail, RTail, Matcher>>;
-}
-
-impl<Matcher, Name, Size, LTail, RTail>
-    DBroadcastingTo<DCons<Name, Size, RTail>, BcastRight<Matcher>> for DCons<Name, U1, LTail>
-where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingTo<RTail, Matcher>,
-    RTail: DimList,
-    DBroadcastingToOutput<LTail, RTail, Matcher>: DimList,
-{
-    type Output = DCons<Name, Size, DBroadcastingToOutput<LTail, RTail, Matcher>>;
-}
-
-impl<Matcher, Name, Size, LTail, RTail> DBroadcastingTo<DCons<Name, U1, RTail>, BcastLeft<Matcher>>
-    for DCons<Name, Size, LTail>
-where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingTo<RTail, Matcher>,
-    RTail: DimList,
-    DBroadcastingToOutput<LTail, RTail, Matcher>: DimList,
-{
-    type Output = DCons<Name, Size, DBroadcastingToOutput<LTail, RTail, Matcher>>;
-}
-
-// broadcast to size of target from tail
-
-/// Broadcasts the input [DimList] to the size of target [DimList] from
+/// A [Functor] that broadcasts the input [DimList] to the shape of target [DimList] from
 /// tail to head.
-pub trait DBroadcastTo<Target, Matcher>
+pub struct DBroadcastToFunctor<Target, Matcher>
 where
     Target: DimList,
-    Matcher: BroadcastMatcher,
-    Self::Output: DimList,
+    Matcher: BroadcastIndicator,
 {
-    type Output;
+    _phantom: PhantomData<(Target, Matcher)>,
 }
 
-impl<List, Target, Matcher> DBroadcastTo<Target, Matcher> for List
+pub type DBroadcastTo<List, Target, Matcher> =
+    ApplyFunctor<DBroadcastToFunctor<Target, Matcher>, List>;
+
+impl<List, Target, Matcher> Functor<List> for DBroadcastToFunctor<Target, Matcher>
 where
-    Matcher: BroadcastMatcher,
-    List: DimList + DReverse,
-    Target: DimList + DReverse,
-    DReverseOutput<List>: DBroadcastingTo<DReverseOutput<Target>, Matcher>,
-    DBroadcastingToOutput<DReverseOutput<List>, DReverseOutput<Target>, Matcher>: DReverse,
+    List: DimList + IfLessOrEqual<DRank<List>, DRank<Target>>,
+    Target: DimList,
+    Matcher: BroadcastIndicator,
+    DRankFunctor: Functor<List> + Functor<Target>,
+    DBroadcastBothFunctor<Target, Matcher>: Functor<List>,
 {
-    type Output = DReverseOutput<
-        DBroadcastingToOutput<DReverseOutput<List>, DReverseOutput<Target>, Matcher>,
-    >;
+    type Output = DBroadcastBoth<List, Target, Matcher>;
 }
-
-pub type DBroadcastToOutput<List, Target, Matcher> =
-    <List as DBroadcastTo<Target, Matcher>>::Output;
 
 // broadcast to size of target from head
 
-/// Broadcasts the input [DimList] to the size of target [DimList] from
-/// head to tail.
-pub trait DBroadcastToReversely<Target, Matcher>
+/// A [Functor] that broadcasts the input [DimList] to the shape of target [DimList] from
+/// tail to head.
+pub struct DBroadcastToReverselyFunctor<Target, Matcher>
 where
     Target: DimList,
-    Matcher: BroadcastMatcher,
-    Self::Output: DimList,
+    Matcher: BroadcastIndicator,
 {
-    type Output;
+    _phantom: PhantomData<(Target, Matcher)>,
 }
 
-impl<List, Target, Matcher> DBroadcastToReversely<Target, Matcher> for List
+pub type DBroadcastToReversely<List, Target, Matcher> =
+    ApplyFunctor<DBroadcastToReverselyFunctor<Target, Matcher>, List>;
+
+impl<List, Target, Matcher> Functor<List> for DBroadcastToReverselyFunctor<Target, Matcher>
 where
-    Matcher: BroadcastMatcher,
-    List: DimList + DBroadcastingTo<Target, Matcher>,
+    List: DimList,
     Target: DimList,
+    Matcher: BroadcastIndicator,
+    DReverseFunctor: Functor<List>
+        + Functor<Target>
+        + Functor<DBroadcastTo<DReverse<List>, DReverse<Target>, Matcher>>,
+    DBroadcastToFunctor<DReverse<Target>, Matcher>: Functor<DReverse<List>>,
+    DReverse<Target>: DimList,
 {
-    type Output = DBroadcastingToOutput<List, Target, Matcher>;
+    type Output = DReverse<DBroadcastTo<DReverse<List>, DReverse<Target>, Matcher>>;
 }
-
-pub type DBroadcastToReverselyOutput<List, Target, Matcher> =
-    <List as DBroadcastToReversely<Target, Matcher>>::Output;
 
 // broadcast both sizes from head
 
-/// An auxiliary trait for [DBroadcastBoth] and [DBroadcastBothReversely] type operators.
-pub trait DBroadcastingBoth<Target, Matcher>
+/// An auxiliary trait for [DBroadcastBothOp] and [DBroadcastBothReverselyOp] type operators.
+pub trait DBroadcastingBothOp<Target, Matcher>
 where
     Target: DimList,
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
     Self: DimList,
     Self::Output: DimList,
 {
     type Output;
 }
 
-pub type DBroadcastingBothOutput<List, Target, Matcher> =
-    <List as DBroadcastingBoth<Target, Matcher>>::Output;
+pub type DBroadcastingBothOpOutput<List, Target, Matcher> =
+    <List as DBroadcastingBothOp<Target, Matcher>>::Output;
 
-impl DBroadcastingBoth<DNil, BcastAbscent> for DNil {
+impl DBroadcastingBothOp<DNil, BcastAbscent> for DNil {
     type Output = DNil;
 }
 
-impl<Name, Size, Tail> DBroadcastingBoth<DCons<Name, Size, Tail>, BcastAbscent> for DNil
+impl<Name, Size, Tail> DBroadcastingBothOp<DCons<Name, Size, Tail>, BcastAbscent> for DNil
 where
-    Name: Dim,
-    Size: Unsigned,
+    Name: DimName,
+    Size: DimSize,
     Tail: DimList,
-    DNil: DBroadcastingBoth<Tail, BcastAbscent>,
+    DNil: DBroadcastingBothOp<Tail, BcastAbscent>,
 {
-    type Output = DCons<Name, Size, DBroadcastingBothOutput<DNil, Tail, BcastAbscent>>;
+    type Output = DCons<Name, Size, DBroadcastingBothOpOutput<DNil, Tail, BcastAbscent>>;
 }
 
-impl<Name, Size, Tail> DBroadcastingBoth<DNil, BcastAbscent> for DCons<Name, Size, Tail>
+impl<Name, Size, Tail> DBroadcastingBothOp<DNil, BcastAbscent> for DCons<Name, Size, Tail>
 where
-    Name: Dim,
-    Size: Unsigned,
-    Tail: DimList + DBroadcastingBoth<DNil, BcastAbscent>,
+    Name: DimName,
+    Size: DimSize,
+    Tail: DimList + DBroadcastingBothOp<DNil, BcastAbscent>,
 {
-    type Output = DCons<Name, Size, DBroadcastingBothOutput<Tail, DNil, BcastAbscent>>;
+    type Output = DCons<Name, Size, DBroadcastingBothOpOutput<Tail, DNil, BcastAbscent>>;
 }
 
 impl<Matcher, Name, Size, LTail, RTail>
-    DBroadcastingBoth<DCons<Name, Size, RTail>, BcastIdentical<Matcher>>
+    DBroadcastingBothOp<DCons<Name, Size, RTail>, BcastIdentical<Matcher>>
     for DCons<Name, Size, LTail>
 where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingBoth<RTail, Matcher>,
+    Matcher: BroadcastIndicator,
+    Name: DimName,
+    Size: DimSize,
+    LTail: DimList + DBroadcastingBothOp<RTail, Matcher>,
     RTail: DimList,
-    DBroadcastingBothOutput<LTail, RTail, Matcher>: DimList,
+    DBroadcastingBothOpOutput<LTail, RTail, Matcher>: DimList,
 {
-    type Output = DCons<Name, Size, DBroadcastingBothOutput<LTail, RTail, Matcher>>;
+    type Output = DCons<Name, Size, DBroadcastingBothOpOutput<LTail, RTail, Matcher>>;
 }
 
 impl<Matcher, Name, Size, LTail, RTail>
-    DBroadcastingBoth<DCons<Name, Size, RTail>, BcastRight<Matcher>> for DCons<Name, U1, LTail>
+    DBroadcastingBothOp<DCons<Name, Size, RTail>, BcastRight<Matcher>>
+    for DCons<Name, Known<U1>, LTail>
 where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingBoth<RTail, Matcher>,
+    Matcher: BroadcastIndicator,
+    Name: DimName,
+    Size: DimSize,
+    LTail: DimList + DBroadcastingBothOp<RTail, Matcher>,
     RTail: DimList,
-    DBroadcastingBothOutput<LTail, RTail, Matcher>: DimList,
+    DBroadcastingBothOpOutput<LTail, RTail, Matcher>: DimList,
 {
-    type Output = DCons<Name, Size, DBroadcastingBothOutput<LTail, RTail, Matcher>>;
+    type Output = DCons<Name, Size, DBroadcastingBothOpOutput<LTail, RTail, Matcher>>;
+}
+
+impl<Matcher, Name, U, Bit1, Bit2, LTail, RTail>
+    DBroadcastingBothOp<DCons<Name, Known<UInt<UInt<U, Bit1>, Bit2>>, RTail>, BcastRight<Matcher>>
+    for DCons<Name, Unknown, LTail>
+where
+    Matcher: BroadcastIndicator,
+    Name: DimName,
+    U: Unsigned,
+    Bit1: Bit,
+    Bit2: Bit,
+    LTail: DimList + DBroadcastingBothOp<RTail, Matcher>,
+    RTail: DimList,
+    DBroadcastingBothOpOutput<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DCons<
+        Name,
+        Known<UInt<UInt<U, Bit1>, Bit2>>,
+        DBroadcastingBothOpOutput<LTail, RTail, Matcher>,
+    >;
 }
 
 impl<Matcher, Name, Size, LTail, RTail>
-    DBroadcastingBoth<DCons<Name, U1, RTail>, BcastLeft<Matcher>> for DCons<Name, Size, LTail>
+    DBroadcastingBothOp<DCons<Name, Known<U1>, RTail>, BcastLeft<Matcher>>
+    for DCons<Name, Size, LTail>
 where
-    Matcher: BroadcastMatcher,
-    Name: Dim,
-    Size: Unsigned,
-    LTail: DimList + DBroadcastingBoth<RTail, Matcher>,
+    Matcher: BroadcastIndicator,
+    Name: DimName,
+    Size: DimSize,
+    LTail: DimList + DBroadcastingBothOp<RTail, Matcher>,
     RTail: DimList,
-    DBroadcastingBothOutput<LTail, RTail, Matcher>: DimList,
+    DBroadcastingBothOpOutput<LTail, RTail, Matcher>: DimList,
 {
-    type Output = DCons<Name, Size, DBroadcastingBothOutput<LTail, RTail, Matcher>>;
+    type Output = DCons<Name, Size, DBroadcastingBothOpOutput<LTail, RTail, Matcher>>;
+}
+
+impl<Matcher, Name, U, Bit1, Bit2, LTail, RTail>
+    DBroadcastingBothOp<DCons<Name, Unknown, RTail>, BcastLeft<Matcher>>
+    for DCons<Name, Known<UInt<UInt<U, Bit1>, Bit2>>, LTail>
+where
+    Matcher: BroadcastIndicator,
+    Name: DimName,
+    U: Unsigned,
+    Bit1: Bit,
+    Bit2: Bit,
+    LTail: DimList + DBroadcastingBothOp<RTail, Matcher>,
+    RTail: DimList,
+    DBroadcastingBothOpOutput<LTail, RTail, Matcher>: DimList,
+{
+    type Output = DCons<
+        Name,
+        Known<UInt<UInt<U, Bit1>, Bit2>>,
+        DBroadcastingBothOpOutput<LTail, RTail, Matcher>,
+    >;
 }
 
 // broadcast both sizes from tail
 
-/// Broadcasts the input [DimList] to the size of target [DimList] from
+/// A [Functor] that broadcasts both input and `Target` [DimList] to same shape from
 /// tail to head.
-pub trait DBroadcastBoth<Target, Matcher>
+pub struct DBroadcastBothFunctor<Target, Matcher>
 where
     Target: DimList,
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
+{
+    _phantom: PhantomData<(Target, Matcher)>,
+}
+
+pub type DBroadcastBoth<List, Target, Matcher> =
+    ApplyFunctor<DBroadcastBothFunctor<Target, Matcher>, List>;
+
+impl<List, Target, Matcher> Functor<List> for DBroadcastBothFunctor<Target, Matcher>
+where
+    List: DimList + DBroadcastBothOp<Target, Matcher>,
+    Target: DimList,
+    Matcher: BroadcastIndicator,
+{
+    type Output = DBroadcastBothOpOutput<List, Target, Matcher>;
+}
+
+/// A trait that broadcasts both input and `Target` [DimList] to same shape from
+/// tail to head.
+pub trait DBroadcastBothOp<Target, Matcher>
+where
+    Target: DimList,
+    Matcher: BroadcastIndicator,
     Self::Output: DimList,
 {
     type Output;
 }
 
-impl<List, Target, Matcher> DBroadcastBoth<Target, Matcher> for List
+impl<List, Target, Matcher> DBroadcastBothOp<Target, Matcher> for List
 where
-    Matcher: BroadcastMatcher,
-    List: DimList + DReverse,
-    Target: DimList + DReverse,
-    DReverseOutput<List>: DBroadcastingBoth<DReverseOutput<Target>, Matcher>,
-    DBroadcastingBothOutput<DReverseOutput<List>, DReverseOutput<Target>, Matcher>: DReverse,
+    Matcher: BroadcastIndicator,
+    List: DimList,
+    Target: DimList,
+    DReverse<List>: DBroadcastingBothOp<DReverse<Target>, Matcher>,
+    DReverse<Target>: DimList,
+    DReverseFunctor: Functor<List>
+        + Functor<Target>
+        + Functor<DBroadcastingBothOpOutput<DReverse<List>, DReverse<Target>, Matcher>>,
+    DReverse<DBroadcastingBothOpOutput<DReverse<List>, DReverse<Target>, Matcher>>: DimList,
 {
-    type Output = DReverseOutput<
-        DBroadcastingBothOutput<DReverseOutput<List>, DReverseOutput<Target>, Matcher>,
-    >;
+    type Output = DReverse<DBroadcastingBothOpOutput<DReverse<List>, DReverse<Target>, Matcher>>;
 }
 
-pub type DBroadcastBothOutput<List, Target, Matcher> =
-    <List as DBroadcastBoth<Target, Matcher>>::Output;
+pub type DBroadcastBothOpOutput<List, Target, Matcher> =
+    <List as DBroadcastBothOp<Target, Matcher>>::Output;
 
 // broadcast both sizes from head
 
-/// Broadcasts the input [DimList] to the size of target [DimList] from
+/// A [Functor] that broadcasts both input and `Target` [DimList] to same shape from
 /// head to tail.
-pub trait DBroadcastBothReversely<Target, Matcher>
+pub struct DBroadcastBothReverselyFunctor<Target, Matcher>
 where
     Target: DimList,
-    Matcher: BroadcastMatcher,
+    Matcher: BroadcastIndicator,
+{
+    _phantom: PhantomData<(Target, Matcher)>,
+}
+
+pub type DBroadcastBothReversely<List, Target, Matcher> =
+    ApplyFunctor<DBroadcastBothReverselyFunctor<Target, Matcher>, List>;
+
+impl<List, Target, Matcher> Functor<List> for DBroadcastBothReverselyFunctor<Target, Matcher>
+where
+    List: DimList + DBroadcastBothReverselyOp<Target, Matcher>,
+    Target: DimList,
+    Matcher: BroadcastIndicator,
+{
+    type Output = DBroadcastBothReverselyOpOutput<List, Target, Matcher>;
+}
+
+/// A trait that broadcasts both input and `Target` [DimList] to same shape from
+/// head to tail.
+pub trait DBroadcastBothReverselyOp<Target, Matcher>
+where
+    Target: DimList,
+    Matcher: BroadcastIndicator,
     Self::Output: DimList,
 {
     type Output;
 }
 
-impl<List, Target, Matcher> DBroadcastBothReversely<Target, Matcher> for List
+impl<List, Target, Matcher> DBroadcastBothReverselyOp<Target, Matcher> for List
 where
-    Matcher: BroadcastMatcher,
-    List: DimList + DBroadcastingBoth<Target, Matcher>,
+    Matcher: BroadcastIndicator,
+    List: DimList + DBroadcastingBothOp<Target, Matcher>,
     Target: DimList,
 {
-    type Output = DBroadcastingBothOutput<List, Target, Matcher>;
+    type Output = DBroadcastingBothOpOutput<List, Target, Matcher>;
 }
 
-pub type DBroadcastBothReverselyOutput<List, Target, Matcher> =
-    <List as DBroadcastBothReversely<Target, Matcher>>::Output;
+pub type DBroadcastBothReverselyOpOutput<List, Target, Matcher> =
+    <List as DBroadcastBothReverselyOp<Target, Matcher>>::Output;
 
 // tests
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{make_dims, DimListType};
+    use crate::{define_dim_names, Dims};
     use type_freak::control::IfSameOutput;
     use typenum::consts::*;
 
-    make_dims! {A, B, C, D, E}
+    define_dim_names! {A, B, C, D, E, F}
 
-    type XDims = DimListType! {(A, U3), (B, U2), (C, U1)};
-    type YDims = DimListType! {(A, U3), (B, U1), (C, U4)};
-    type ZDims = DimListType! {(A, U1), (B, U2), (C, U4), (D, U1), (E, U9)};
-    type WDims = DimListType! {(E, U5), (D, U3), (A, U1), (B, U2), (C, U4)};
+    type Dims1 = Dims![(A, U3), (B, U2), (C, U1)];
+    type Dims2 = Dims![(A, U3), (B, U1), (C, U4)];
+    type Dims3 = Dims![(A, U1), (B, U2), (C, U4), (D, U1), (E, U9)];
+    type Dims4 = Dims![(E, U5), (D, U3), (A, U1), (B, U2), (C, U4)];
+    type Dims5 = Dims![(A,), (B, U2), (C,), (D, U1), (E,)];
+    type Dims6 = Dims![(F,), (A, U3), (B,), (C, U1), (D,), (E,)];
 
     type AssertSame<Lhs, Rhs> = IfSameOutput<(), Lhs, Rhs>;
 
-    type Assert1<Matcher> = AssertSame<
-        DBroadcastToOutput<XDims, YDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4)},
-    >;
+    type Assert1<Matcher> =
+        AssertSame<DBroadcastTo<Dims1, Dims2, Matcher>, Dims![(A, U3), (B, U2), (C, U4)]>;
 
     type Assert2<Matcher> = AssertSame<
-        DBroadcastToOutput<XDims, WDims, Matcher>,
-        DimListType! {(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)},
+        DBroadcastTo<Dims1, Dims4, Matcher>,
+        Dims![(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)],
     >;
 
-    type Assert3<Matcher> = AssertSame<
-        DBroadcastToReverselyOutput<XDims, YDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4)},
-    >;
+    type Assert3<Matcher> =
+        AssertSame<DBroadcastToReversely<Dims1, Dims2, Matcher>, Dims![(A, U3), (B, U2), (C, U4)]>;
 
     type Assert4<Matcher> = AssertSame<
-        DBroadcastToReverselyOutput<XDims, ZDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)},
+        DBroadcastToReversely<Dims1, Dims3, Matcher>,
+        Dims![(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)],
     >;
 
-    type Assert5<Matcher> = AssertSame<
-        DBroadcastBothOutput<XDims, YDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4)},
-    >;
+    type Assert5<Matcher> =
+        AssertSame<DBroadcastBoth<Dims1, Dims2, Matcher>, Dims![(A, U3), (B, U2), (C, U4)]>;
 
     type Assert6<Matcher> = AssertSame<
-        DBroadcastBothOutput<XDims, WDims, Matcher>,
-        DimListType! {(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)},
+        DBroadcastBoth<Dims1, Dims4, Matcher>,
+        Dims![(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)],
     >;
 
     type Assert7<Matcher> = AssertSame<
-        DBroadcastBothOutput<WDims, XDims, Matcher>,
-        DimListType! {(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)},
+        DBroadcastBoth<Dims4, Dims1, Matcher>,
+        Dims![(E, U5), (D, U3), (A, U3), (B, U2), (C, U4)],
     >;
 
     type Assert8<Matcher> = AssertSame<
-        DBroadcastBothReverselyOutput<XDims, YDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4)},
+        DBroadcastBothReversely<Dims1, Dims2, Matcher>,
+        Dims![(A, U3), (B, U2), (C, U4)],
     >;
 
     type Assert9<Matcher> = AssertSame<
-        DBroadcastBothReverselyOutput<XDims, ZDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)},
+        DBroadcastBothReversely<Dims1, Dims3, Matcher>,
+        Dims![(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)],
     >;
 
     type Assert10<Matcher> = AssertSame<
-        DBroadcastBothReverselyOutput<ZDims, XDims, Matcher>,
-        DimListType! {(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)},
+        DBroadcastBothReversely<Dims3, Dims1, Matcher>,
+        Dims![(A, U3), (B, U2), (C, U4), (D, U1), (E, U9)],
+    >;
+
+    type Assert11<Matcher> = AssertSame<
+        DBroadcastTo<Dims5, Dims6, Matcher>,
+        Dims![(F,), (A, U3), (B, U2), (C,), (D,), (E,)],
+    >;
+
+    type Assert12<Matcher> = AssertSame<
+        DBroadcastBoth<Dims6, Dims5, Matcher>,
+        Dims![(F,), (A, U3), (B, U2), (C,), (D,), (E,)],
     >;
 
     #[test]
@@ -380,5 +414,7 @@ mod tests {
         let _: Assert8<_> = ();
         let _: Assert9<_> = ();
         let _: Assert10<_> = ();
+        let _: Assert11<_> = ();
+        let _: Assert12<_> = ();
     }
 }

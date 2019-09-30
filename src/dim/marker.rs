@@ -1,79 +1,86 @@
-use super::{DCons, DNil, Dim, DimList};
-use typenum::Unsigned;
+use super::{DCons, DNil, DimList, DimName, DimSize};
 
 // scalar marker
 
+/// Represents a [DimList] with zero length.
 pub trait ScalarDim: DimList {}
 
 impl ScalarDim for DNil {}
 
+/// Represents a [DimList] with non-zero length.
 pub trait NonScalarDim: DimList {}
 
-impl<D, S, T> NonScalarDim for DCons<D, S, T>
+impl<Name, Size, Tail> NonScalarDim for DCons<Name, Size, Tail>
 where
-    D: Dim,
-    S: Unsigned,
-    T: DimList,
+    Name: DimName,
+    Size: DimSize,
+    Tail: DimList,
 {
 }
 
 // vector marker
 
+/// Represents a [DimList] with length of one.
 pub trait VectorDim: DimList {}
 
-impl<D, S> VectorDim for DCons<D, S, DNil>
+impl<Name, Size> VectorDim for DCons<Name, Size, DNil>
 where
-    D: Dim,
-    S: Unsigned,
+    Name: DimName,
+    Size: DimSize,
 {
 }
 
+/// Represents a [DimList] which length is not one.
 pub trait NonVectorDim: DimList {}
 
 impl NonVectorDim for DNil {}
 
-impl<D1, S1, D2, S2, T> NonVectorDim for DCons<D1, S1, DCons<D2, S2, T>>
+impl<Name1, Size1, Name2, Size2, Tail> NonVectorDim
+    for DCons<Name1, Size1, DCons<Name2, Size2, Tail>>
 where
-    D1: Dim,
-    S1: Unsigned,
-    D2: Dim,
-    S2: Unsigned,
-    T: DimList,
+    Name1: DimName,
+    Size1: DimSize,
+    Name2: DimName,
+    Size2: DimSize,
+    Tail: DimList,
 {
 }
 
-// vector marker
+// matrix marker
 
+/// Represents a [DimList] with length of two.
 pub trait MatrixDim: DimList {}
 
-impl<D1, S1, D2, S2> MatrixDim for DCons<D1, S1, DCons<D2, S2, DNil>>
+impl<Name1, Size1, Name2, Size2> MatrixDim for DCons<Name1, Size1, DCons<Name2, Size2, DNil>>
 where
-    D1: Dim,
-    S1: Unsigned,
-    D2: Dim,
-    S2: Unsigned,
+    Name1: DimName,
+    Size1: DimSize,
+    Name2: DimName,
+    Size2: DimSize,
 {
 }
 
+/// Represents a [DimList] which length is not two.
 pub trait NonMatrixDim: DimList {}
 
 impl NonMatrixDim for DNil {}
 
-impl<D, S> NonMatrixDim for DCons<D, S, DNil>
+impl<Name, Size> NonMatrixDim for DCons<Name, Size, DNil>
 where
-    D: Dim,
-    S: Unsigned,
+    Name: DimName,
+    Size: DimSize,
 {
 }
 
-impl<D1, S1, D2, S2, D3, S3, T> MatrixDim for DCons<D1, S1, DCons<D2, S2, DCons<D3, S3, T>>>
+impl<Name1, Size1, Name2, Size2, Name3, Size3, Tail> MatrixDim
+    for DCons<Name1, Size1, DCons<Name2, Size2, DCons<Name3, Size3, Tail>>>
 where
-    D1: Dim,
-    S1: Unsigned,
-    D2: Dim,
-    S2: Unsigned,
-    D3: Dim,
-    S3: Unsigned,
-    T: DimList,
+    Name1: DimName,
+    Size1: DimSize,
+    Name2: DimName,
+    Size2: DimSize,
+    Name3: DimName,
+    Size3: DimSize,
+    Tail: DimList,
 {
 }
