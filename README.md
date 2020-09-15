@@ -1,3 +1,6 @@
+**The project is no longer maintained. The development work is moved to [rust-typed-tensor](https://github.com/jerry73204/rust-typed-tensor).**
+
+
 # tch-typed-tensor
 
 Inspired by [Tensor Considered Harmful](http://nlp.seas.harvard.edu/NamedTensor),
